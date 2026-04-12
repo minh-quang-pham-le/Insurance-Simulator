@@ -113,9 +113,9 @@ docker-compose logs -f backend
 
 | Model | Purpose | Key relationships |
 |-------|---------|-------------------|
-| User | Auth, profiles, roles (USER/ADMIN) | Has one Wallet, many Policies |
+| User | Auth, profiles, roles (USER/ADMIN), KYC status | Has one Wallet, many Policies |
 | Wallet | Virtual currency balance | Belongs to User, has many Transactions |
-| WalletTransaction | Immutable audit log of all money movements | Belongs to Wallet |
+| WalletTransaction | Immutable audit log of all money movements | Belongs to Wallet, FK to Policy/Claim |
 | InsuranceProduct | Product catalog with JSON parameter schemas | Has many Policies, created by Admin |
 | Policy | Purchased insurance instance | Belongs to User + Product, has many Claims |
 | Claim | Triggered (auto or manual) insurance claim | Belongs to Policy |
@@ -129,8 +129,8 @@ See SPEC.md Section 6 for full column definitions, types, constraints, and index
 
 ## Key Features
 
-1. **Auth**: Email/password + JWT (access 24h + refresh 7d), RBAC (USER/ADMIN)
-2. **Wallet**: Top-up, premium deduction, claim payout, refund. Balance never negative.
+1. **Auth**: Email/password + JWT (access 24h + refresh 7d), RBAC (USER/ADMIN), KYC verification (required before transactions)
+2. **Wallet**: Top-up (KYC required), premium deduction, claim payout, refund. Balance never negative.
 3. **Insurance Catalog**: 5 product types, JSON-schema-driven forms, dynamic premium calculation
 4. **Policy Purchase**: Calculate premium → validate wallet → deduct → create ACTIVE policy
 5. **Automated Claims**: Background job checks external APIs against active policy triggers

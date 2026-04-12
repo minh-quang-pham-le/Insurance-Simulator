@@ -2,8 +2,8 @@
 
 > **Course**: Introduction to Software Engineering
 > **Team size**: 5 members
-> **Status**: Draft v1
-> **Last updated**: 2026-04-11
+> **Status**: Draft v2
+> **Last updated**: 2026-04-13
 
 ---
 
@@ -129,12 +129,42 @@ Login → Dashboard (overview metrics)
 | Password | Hashed with bcrypt. Minimum 8 characters. |
 | Admin creation | First admin seeded. Subsequent admins created by existing admins. |
 | Protected routes | All endpoints except `/auth/register` and `/auth/login` require valid JWT. |
+| KYC verification | Users must complete KYC before any financial transaction (wallet top-up, policy purchase). |
+
+**KYC verification flow:**
+```
+User registers → kyc_status = NOT_SUBMITTED
+       │
+       ▼
+User fills KYC form (phone number + identity confirmation)
+       │
+       ▼
+kyc_status = PENDING  →  Appears in Admin dashboard queue
+       │
+       ├── Admin approves → kyc_status = VERIFIED ✓
+       │
+       └── Admin rejects (with reason) → kyc_status = REJECTED
+                │
+                └── User can resubmit → back to PENDING
+```
+
+| Action | Requires KYC VERIFIED? |
+|--------|------------------------|
+| Browse products, view catalog | No |
+| Use AI chatbot | No |
+| Run simulations | No |
+| Wallet top-up | **Yes** |
+| Purchase policy | **Yes** |
 
 **Acceptance criteria:**
 - [ ] User can register, login, and receive a JWT
 - [ ] Invalid credentials return 401
 - [ ] Expired tokens are rejected; refresh token can issue a new access token
 - [ ] Admin-only endpoints return 403 for USER role
+- [ ] User can submit KYC (phone number + identity details); status moves to PENDING
+- [ ] Admin can approve or reject KYC with reason
+- [ ] Rejected users can resubmit; status cycles back to PENDING
+- [ ] Wallet top-up and policy purchase are blocked until kyc_status = VERIFIED
 
 ### 4.2 Virtual Wallet System
 
@@ -149,7 +179,10 @@ Users start with a balance of **0 SimCoin (SC)**. They must top up before purcha
 
 All wallet operations create a `WalletTransaction` record for audit trail. Balance can never go negative — purchases are rejected if insufficient funds.
 
+> **KYC gate:** Wallet top-up requires `kyc_status = VERIFIED`. Users with NOT_SUBMITTED, PENDING, or REJECTED status receive a 403 with a message directing them to complete KYC first.
+
 **Acceptance criteria:**
+- [ ] Wallet top-up is blocked if user's KYC is not VERIFIED
 - [ ] User can top up any positive amount
 - [ ] Policy purchase deducts exact premium from wallet
 - [ ] Claim payout credits wallet and creates transaction record
@@ -178,11 +211,12 @@ Admins create new products by uploading a JSON configuration file that defines t
 
 ### 4.4 Policy Purchase Flow
 
-1. User selects a product and fills in parameters (flight number, location, etc.)
-2. System calculates personalized premium using the risk engine
-3. User reviews premium, payout amount, and risk score
-4. User confirms purchase → premium deducted from wallet → policy created as `ACTIVE`
-5. System begins monitoring trigger conditions for this policy
+1. System verifies user's `kyc_status = VERIFIED` (rejects with 403 if not)
+2. User selects a product and fills in parameters (flight number, location, etc.)
+3. System calculates personalized premium using the risk engine
+4. User reviews premium, payout amount, and risk score
+5. User confirms purchase → premium deducted from wallet → policy created as `ACTIVE`
+6. System begins monitoring trigger conditions for this policy
 
 **Premium calculation formula:**
 ```
@@ -199,6 +233,7 @@ Where:
 - `location_factor`: 0.5–2.0 based on geographic risk
 
 **Acceptance criteria:**
+- [ ] Purchase is blocked if user's KYC is not VERIFIED
 - [ ] Premium is calculated dynamically and shown before purchase
 - [ ] Wallet balance is validated before purchase
 - [ ] Policy status transitions: PENDING → ACTIVE → EXPIRED | CLAIMED | CANCELLED
@@ -600,6 +635,10 @@ ApiMonitorLog (standalone)
 | password_hash | VARCHAR(255) | NOT NULL | bcrypt hashed |
 | full_name | VARCHAR(100) | NOT NULL | |
 | role | ENUM('USER','ADMIN') | NOT NULL, default 'USER' | |
+| phone_number | VARCHAR(20) | nullable | For KYC and profile |
+| kyc_status | ENUM('NOT_SUBMITTED','PENDING','VERIFIED','REJECTED') | NOT NULL, default 'NOT_SUBMITTED' | Must be VERIFIED for transactions |
+| kyc_submitted_at | TIMESTAMP | nullable | When user last submitted KYC |
+| kyc_rejection_reason | VARCHAR(500) | nullable | Admin's reason if REJECTED |
 | is_active | BOOLEAN | NOT NULL, default TRUE | Soft delete |
 | created_at | TIMESTAMP | NOT NULL, default now() | |
 | updated_at | TIMESTAMP | NOT NULL, auto-update | |
@@ -623,8 +662,8 @@ ApiMonitorLog (standalone)
 | amount | DECIMAL(15,2) | NOT NULL | Always positive; type determines direction |
 | balance_after | DECIMAL(15,2) | NOT NULL | Wallet balance after this transaction |
 | description | VARCHAR(500) | | Human-readable description |
-| reference_id | UUID | nullable | Links to Policy.id or Claim.id |
-| reference_type | VARCHAR(20) | nullable | 'policy' or 'claim' |
+| policy_id | UUID | FK → Policy.id, nullable | Set for PREMIUM_PAYMENT and REFUND |
+| claim_id | UUID | FK → Claim.id, nullable | Set for PAYOUT |
 | created_at | TIMESTAMP | NOT NULL, default now() | Immutable audit log |
 
 **Index:** `(wallet_id, created_at DESC)` for transaction history queries.
@@ -769,6 +808,12 @@ class UserRole(str, enum.Enum):
     USER = "USER"
     ADMIN = "ADMIN"
 
+class KycStatus(str, enum.Enum):
+    NOT_SUBMITTED = "NOT_SUBMITTED"
+    PENDING = "PENDING"
+    VERIFIED = "VERIFIED"
+    REJECTED = "REJECTED"
+
 class TransactionType(str, enum.Enum):
     TOP_UP = "TOP_UP"
     PREMIUM_PAYMENT = "PREMIUM_PAYMENT"
@@ -824,6 +869,8 @@ Base URL: `http://localhost:8000/api/v1`
 | POST | `/auth/login` | Get JWT tokens | None |
 | POST | `/auth/refresh` | Refresh access token | Refresh token |
 | GET | `/auth/me` | Get current user profile | JWT |
+| POST | `/auth/kyc/submit` | Submit KYC verification (phone + identity) | USER |
+| GET | `/auth/kyc/status` | Check own KYC status | USER |
 
 ### 7.2 Wallet
 | Method | Endpoint | Description | Auth |
@@ -875,6 +922,8 @@ Base URL: `http://localhost:8000/api/v1`
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | GET | `/admin/dashboard` | Dashboard metrics | ADMIN |
+| GET | `/admin/kyc/pending` | List users with PENDING KYC | ADMIN |
+| PATCH | `/admin/kyc/{user_id}` | Approve or reject KYC (with reason) | ADMIN |
 | GET | `/admin/users` | List all users (paginated) | ADMIN |
 | GET | `/admin/policies` | All policies (filterable) | ADMIN |
 | GET | `/admin/claims` | All claims (filterable) | ADMIN |
@@ -1177,6 +1226,17 @@ docker-compose exec db psql -U postgres -d insurance_simulator_db  # DB shell
 - **State**: Pinia stores, no direct prop drilling beyond 2 levels
 - **API calls**: Always in `services/` files, never directly in components
 
+### Error Handling (Backend)
+- **Structured logging**: Use Python `logging` module with format `[%(asctime)s] %(levelname)s %(name)s: %(message)s`
+- **Log levels**: DEBUG (dev detail), INFO (request flow, wallet ops), WARNING (recoverable issues), ERROR (failures, external API errors)
+- **Log targets**: All API requests, wallet operations, trigger checks, claim processing, KYC actions
+- **Custom exceptions**: Define business-logic exceptions (`InsufficientBalanceError`, `KycNotVerifiedError`, `PolicyNotFoundError`, `InvalidPolicyStateError`, etc.)
+- **Exception handlers**: Register FastAPI exception handlers that return consistent JSON error responses:
+  ```json
+  {"detail": "KYC verification required", "error_code": "KYC_NOT_VERIFIED"}
+  ```
+- **Never** expose internal stack traces or database errors to the client — log them server-side, return a generic message with an error code
+
 ### Git
 - **Branch naming**: `feature/description`, `fix/description`, `db/description`
 - **Commit messages**: Conventional Commits (`feat:`, `fix:`, `refactor:`, `docs:`, `test:`)
@@ -1218,14 +1278,15 @@ docker-compose exec db psql -U postgres -d insurance_simulator_db  # DB shell
 
 - Database models + Alembic migrations
 - Seed data (products, risk data, sample users)
-- Auth system (register, login, JWT)
+- Auth system (register, login, JWT, KYC verification flow)
+- KYC: user submission form, admin review queue, status enforcement on transactions
 - Wallet (top-up, balance, transactions)
 - Insurance catalog (browse, detail, risk score display)
 - Policy purchase flow (premium calculation, wallet deduction)
 - Basic automated claims with mock trigger service
 - Notification system
 - User app: Home, Login, Register, Dashboard, Insurance List/Detail, Wallet, My Policies
-- Admin app: Login, Dashboard, Products, Policies, Claims
+- Admin app: Login, Dashboard, Products, Policies, Claims, KYC Review Queue
 
 **Deliverable**: Fully functional local demo with fake data that shows all features end-to-end.
 
@@ -1264,11 +1325,13 @@ docker-compose exec db psql -U postgres -d insurance_simulator_db  # DB shell
 
 ### Always Do
 - Validate all user inputs server-side (never trust the frontend)
+- Enforce KYC verification (`kyc_status = VERIFIED`) before wallet top-up and policy purchase
 - Use parameterized queries (SQLAlchemy handles this by default)
 - Hash passwords with bcrypt before storing
 - Return appropriate HTTP status codes (400, 401, 403, 404, 422, 500)
 - Use database transactions for multi-step operations (purchase = debit wallet + create policy)
 - Log all wallet transactions immutably
+- Use structured logging for all backend operations; never expose internal errors to clients
 - Keep the two frontends independent (no shared runtime state)
 
 ### Ask First

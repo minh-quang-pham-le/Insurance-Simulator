@@ -42,11 +42,11 @@ Everything else depends on this slice. Must be completed before other slices can
 
 | Task | Files | Acceptance Criteria |
 |------|-------|-------------------|
-| **1.1** Create enums | `backend/models/enums.py` | 7 enums (UserRole, TransactionType, ProductCategory, PolicyStatus, TriggerType, ClaimStatus, NotificationType) all inherit `str, enum.Enum` |
-| **1.2** Create 10 models | `backend/models/user.py`, `wallet.py`, `insurance_product.py`, `policy.py`, `claim.py`, `risk_data.py`, `notification.py`, `chat_session.py`, `simulation_session.py`, `api_monitor_log.py` | All columns, FKs, indexes, relationships match SPEC Section 6.2 exactly. Inherit `Base, UUIDPrimaryKeyMixin, TimestampMixin` |
+| **1.1** Create enums | `backend/models/enums.py` | 8 enums (UserRole, **KycStatus**, TransactionType, ProductCategory, PolicyStatus, TriggerType, ClaimStatus, NotificationType) all inherit `str, enum.Enum` |
+| **1.2** Create 10 models | `backend/models/user.py`, `wallet.py`, `insurance_product.py`, `policy.py`, `claim.py`, `risk_data.py`, `notification.py`, `chat_session.py`, `simulation_session.py`, `api_monitor_log.py` | All columns, FKs, indexes, relationships match SPEC Section 6.2 exactly. Inherit `Base, UUIDPrimaryKeyMixin, TimestampMixin`. **User model** includes `phone_number`, `kyc_status`, `kyc_submitted_at`, `kyc_rejection_reason`. **WalletTransaction** uses `policy_id` (FK → Policy) and `claim_id` (FK → Claim) instead of polymorphic reference_id/reference_type |
 | **1.3** Uncomment model imports | `backend/models/__init__.py` | All 10 imports active, `from models import *` works |
 | **1.4** Generate migration | `backend/alembic/versions/*.py` | `alembic upgrade head` creates all 10 tables; `alembic downgrade base` drops cleanly |
-| **1.5** Create Pydantic schemas | `backend/schemas/auth.py`, `user.py`, `wallet.py`, `insurance.py`, `policy.py`, `claim.py`, `simulation.py`, `chat.py`, `notification.py`, `admin.py` | All request/response schemas with `from_attributes=True`, proper validators |
+| **1.5** Create Pydantic schemas | `backend/schemas/auth.py`, `user.py`, `wallet.py`, `insurance.py`, `policy.py`, `claim.py`, `simulation.py`, `chat.py`, `notification.py`, `admin.py` | All request/response schemas with `from_attributes=True`, proper validators. **auth.py** includes `KycSubmitRequest` (phone_number, identity details). **admin.py** includes `KycReviewRequest` (action: approve/reject, rejection_reason). **user.py** includes `kyc_status` in responses |
 | **1.6** Create seed data | `backend/seed/products.json`, `seed/risk_data.json`, `seed/seed_data.py` | Idempotent script creates admin user, test user with 10000 SC wallet, 5 products, 250+ risk data records |
 
 **Verify:** `alembic upgrade head && python -m seed.seed_data` runs cleanly on fresh DB. Query all tables to confirm data.
@@ -58,12 +58,12 @@ Everything else depends on this slice. Must be completed before other slices can
 | Task | Files | Acceptance Criteria |
 |------|-------|-------------------|
 | **2.1** JWT middleware | `backend/middleware/auth.py` | `get_current_user` dependency extracts user from JWT; `require_admin` raises 403 for USER role; expired tokens -> 401 |
-| **2.2** Auth service | `backend/services/auth_service.py` | Register creates User+Wallet atomically; bcrypt password hashing; authenticate validates credentials |
-| **2.3** Auth router | `backend/routers/auth.py` + uncomment in `app.py` | POST `/register`, `/login`, `/refresh`; GET `/me`. Swagger docs show all 4 endpoints |
+| **2.2** Auth service | `backend/services/auth_service.py` | Register creates User+Wallet atomically (kyc_status = NOT_SUBMITTED); bcrypt password hashing; authenticate validates credentials; **KYC**: submit_kyc (validates phone + identity, sets PENDING), get_kyc_status |
+| **2.3** Auth router | `backend/routers/auth.py` + uncomment in `app.py` | POST `/register`, `/login`, `/refresh`; GET `/me`; **POST `/kyc/submit`**, **GET `/kyc/status`**. Swagger docs show all 6 endpoints |
 | **2.4** Frontend scaffolding | Both apps: `index.html`, `vite.config.js`, `tailwind.config.js`, `postcss.config.js`, `src/main.js`, `src/App.vue`, `src/assets/main.css`, `src/router/index.js`, `src/services/api.js`, `src/stores/auth.js` | `npm run dev` starts on 5173/5174; Axios interceptor attaches JWT; router guards protect routes |
-| **2.5** Auth pages | User: `LoginView.vue`, `RegisterView.vue`, `HomeView.vue`, `AppHeader.vue`, `authService.js`. Admin: `LoginView.vue`, `AdminSidebar.vue`, `AdminHeader.vue` | Register -> login -> view profile -> logout flow works in browser |
+| **2.5** Auth pages | User: `LoginView.vue`, `RegisterView.vue`, `HomeView.vue`, `AppHeader.vue`, `authService.js`, **`KycView.vue`** (KYC submission form). Admin: `LoginView.vue`, `AdminSidebar.vue`, `AdminHeader.vue` | Register -> login -> view profile -> logout flow works in browser. **KYC form accessible from profile/dashboard; shows current KYC status** |
 
-**Verify:** Full register -> login -> access /me -> refresh token -> access admin-only endpoint (403 for USER) flow via curl/Swagger.
+**Verify:** Full register -> login -> access /me -> refresh token -> access admin-only endpoint (403 for USER) flow. **Additionally:** submit KYC -> status = PENDING -> admin approves -> status = VERIFIED -> wallet top-up now succeeds.
 
 ---
 
@@ -71,11 +71,11 @@ Everything else depends on this slice. Must be completed before other slices can
 
 | Task | Files | Acceptance Criteria |
 |------|-------|-------------------|
-| **3.1** Wallet service | `backend/services/wallet_service.py` | `SELECT ... FOR UPDATE` locking; balance never negative; all ops create WalletTransaction with correct balance_after |
-| **3.2** Wallet router | `backend/routers/wallet.py` + uncomment in `app.py` | GET `/`, POST `/topup`, GET `/transactions` with pagination |
+| **3.1** Wallet service | `backend/services/wallet_service.py` | `SELECT ... FOR UPDATE` locking; balance never negative; all ops create WalletTransaction with correct balance_after; **WalletTransaction links via `policy_id` or `claim_id` FKs** (not polymorphic reference) |
+| **3.2** Wallet router | `backend/routers/wallet.py` + uncomment in `app.py` | GET `/`, POST `/topup`, GET `/transactions` with pagination. **Top-up requires `kyc_status = VERIFIED`; returns 403 with KYC message if not verified** |
 | **3.3** Wallet frontend | `walletService.js`, `stores/wallet.js`, `WalletView.vue`, `BalanceCard.vue`, `TransactionList.vue` | Top up -> balance updates -> transaction history shows record; balance visible in header |
 
-**Verify:** Register -> top up 500 -> top up 300 -> balance shows 800 -> 2 transactions in history.
+**Verify:** Register -> attempt top-up (blocked: KYC not verified) -> submit KYC -> admin approves -> top up 500 -> top up 300 -> balance shows 800 -> 2 transactions in history.
 
 ---
 
@@ -95,11 +95,11 @@ Everything else depends on this slice. Must be completed before other slices can
 | Task | Files | Acceptance Criteria |
 |------|-------|-------------------|
 | **5.1** Risk engine (basic) | `backend/services/risk_engine.py` | Premium formula from SPEC 4.4; season_factor, location_factor; risk_score 1-10 |
-| **5.2** Policy service | `backend/services/policy_service.py` | Atomic purchase (calc premium -> check wallet -> deduct -> create policy); cancel with refund; expire_policies background |
+| **5.2** Policy service | `backend/services/policy_service.py` | **Verify `kyc_status = VERIFIED` before purchase (403 if not)**; atomic purchase (calc premium -> check wallet -> deduct -> create policy); cancel with refund; expire_policies background |
 | **5.3** Policy router | `backend/routers/policies.py` + uncomment in `app.py` | POST `/calculate-premium`, `/purchase`; GET `/`, `/{id}`; POST `/{id}/cancel` |
 | **5.4** Purchase UI | `PremiumCalculator.vue`, `MyPoliciesView.vue`, `DashboardView.vue` | Fill params -> calculate -> see breakdown -> purchase -> wallet deducted -> policy in My Policies |
 
-**Verify:** Login -> top up 5000 -> calculate Flight Delay premium -> purchase -> wallet reduced -> My Policies shows ACTIVE -> cancel -> wallet refunded.
+**Verify:** Login (KYC verified user) -> top up 5000 -> calculate Flight Delay premium -> purchase -> wallet reduced -> My Policies shows ACTIVE -> cancel -> wallet refunded. **Also verify:** unverified user cannot purchase (403).
 
 ---
 
@@ -118,19 +118,20 @@ Everything else depends on this slice. Must be completed before other slices can
 
 | Task | Files | Acceptance Criteria |
 |------|-------|-------------------|
-| **7.1** Admin router | `backend/routers/admin.py` + uncomment in `app.py` | GET `/dashboard`, `/users`, `/policies`, `/claims`; PUT `/claims/{id}/review` |
-| **7.2** Admin dashboard UI | `adminService.js`, `DashboardView.vue`, `PoliciesView.vue`, `UsersView.vue`, `StatsCard.vue` | Metrics cards with real data; all admin tables paginated |
+| **7.1** Admin router | `backend/routers/admin.py` + uncomment in `app.py` | GET `/dashboard`, `/users`, `/policies`, `/claims`; PUT `/claims/{id}/review`; **GET `/kyc/pending`**, **PATCH `/kyc/{user_id}`** (approve/reject with reason) |
+| **7.2** Admin dashboard UI | `adminService.js`, `DashboardView.vue`, `PoliciesView.vue`, `UsersView.vue`, `StatsCard.vue`, **`KycReviewView.vue`** | Metrics cards with real data; all admin tables paginated. **KYC review queue shows pending users; admin can approve or reject with reason** |
 
 ---
 
 ### CHECKPOINT 1 (Phase 1 Complete)
 - [ ] Full auth on both apps
-- [ ] Wallet ops work
+- [ ] **KYC flow: user submits → admin approves/rejects → status enforced on transactions**
+- [ ] Wallet ops work **(top-up blocked without KYC)**
 - [ ] 5 products in catalog with risk scores
-- [ ] Policy purchase + cancel flow
+- [ ] Policy purchase + cancel flow **(purchase blocked without KYC)**
 - [ ] Manual claim -> admin review -> payout
 - [ ] Notifications with unread count
-- [ ] Admin dashboard with metrics
+- [ ] Admin dashboard with metrics **+ KYC review queue**
 - [ ] Swagger docs complete at /docs
 
 ---
@@ -201,7 +202,7 @@ Everything else depends on this slice. Must be completed before other slices can
 
 | Task | Files | Acceptance Criteria |
 |------|-------|-------------------|
-| **12.1** Error handling | `backend/middleware/error_handler.py` | Global exception handler; structured JSON errors; 500s logged |
+| **12.1** Error handling | `backend/middleware/error_handler.py` | Global exception handler; structured JSON errors (`{"detail": "...", "error_code": "..."}`); 500s logged. Note: custom exceptions (`InsufficientBalanceError`, `KycNotVerifiedError`, etc.) and structured logging should be used from Phase 1 per SPEC Section 11 conventions; this slice adds the centralized handler and hardens edge cases |
 | **12.2** Input validation | All schemas | Field validators; rate limiting on login/register |
 | **12.3** Query optimization | All services | `joinedload` for N+1 prevention; pagination verified |
 | **12.4** Security review | All routers/middleware | No SQL injection; no plaintext passwords; RBAC on all admin endpoints |
@@ -275,10 +276,11 @@ After each checkpoint, run:
 ## Critical Path Files
 
 These files have the highest dependency fan-out — errors here block everything:
-- `backend/models/enums.py` — every model and schema imports from here
-- `backend/middleware/auth.py` — every protected endpoint depends on this
-- `backend/services/wallet_service.py` — purchases, claims, and refunds all go through wallet
-- `backend/services/policy_service.py` — most complex transaction (premium + wallet + policy + notification)
+- `backend/models/enums.py` — every model and schema imports from here (8 enums including KycStatus)
+- `backend/middleware/auth.py` — every protected endpoint depends on this; KYC enforcement utility lives here
+- `backend/services/auth_service.py` — registration + KYC flow; KYC status gates wallet and policy services
+- `backend/services/wallet_service.py` — purchases, claims, and refunds all go through wallet; enforces KYC gate
+- `backend/services/policy_service.py` — most complex transaction (KYC check + premium + wallet + policy + notification)
 - `frontend-user/src/services/api.js` — every frontend API call uses this Axios instance
 
 ---
@@ -287,7 +289,7 @@ These files have the highest dependency fan-out — errors here block everything
 
 ### Backend (37+ files to create)
 
-**Models (11):** `enums.py`, `user.py`, `wallet.py`, `insurance_product.py`, `policy.py`, `claim.py`, `risk_data.py`, `notification.py`, `chat_session.py`, `simulation_session.py`, `api_monitor_log.py`
+**Models (11):** `enums.py` (8 enums incl. KycStatus), `user.py` (+ KYC fields), `wallet.py` (WalletTransaction uses policy_id/claim_id FKs), `insurance_product.py`, `policy.py`, `claim.py`, `risk_data.py`, `notification.py`, `chat_session.py`, `simulation_session.py`, `api_monitor_log.py`
 
 **Schemas (10):** `auth.py`, `user.py`, `wallet.py`, `insurance.py`, `policy.py`, `claim.py`, `simulation.py`, `chat.py`, `notification.py`, `admin.py`
 
@@ -315,7 +317,7 @@ These files have the highest dependency fan-out — errors here block everything
 
 **Services (8):** `api.js`, `authService.js`, `walletService.js`, `insuranceService.js`, `claimService.js`, `notificationService.js`, `chatService.js`, `simulationService.js`
 
-**Views (9):** `HomeView.vue`, `LoginView.vue`, `RegisterView.vue`, `DashboardView.vue`, `InsuranceListView.vue`, `InsuranceDetailView.vue`, `WalletView.vue`, `MyPoliciesView.vue`, `NotificationsView.vue`
+**Views (10):** `HomeView.vue`, `LoginView.vue`, `RegisterView.vue`, `DashboardView.vue`, `InsuranceListView.vue`, `InsuranceDetailView.vue`, `WalletView.vue`, `MyPoliciesView.vue`, `NotificationsView.vue`, **`KycView.vue`**
 
 **Components (~15+):** `AppHeader.vue`, `AppFooter.vue`, `NotificationBell.vue`, `ProductCard.vue`, `RiskGauge.vue`, `DynamicForm.vue`, `PremiumCalculator.vue`, `BalanceCard.vue`, `TransactionList.vue`, `ChatWidget.vue`, `ChatMessage.vue`, `SimulationModal.vue`, `TriggerSlider.vue`, `ThresholdBar.vue`, `TriggerResult.vue`, plus 5 animation components in Phase 4
 
@@ -329,6 +331,6 @@ These files have the highest dependency fan-out — errors here block everything
 
 **Services (6):** `api.js`, `authService.js`, `adminService.js`, `insuranceService.js`, `claimService.js`, `analyticsService.js`
 
-**Views (9):** `LoginView.vue`, `DashboardView.vue`, `ProductsView.vue`, `ProductFormView.vue`, `PoliciesView.vue`, `ClaimsView.vue`, `RiskAnalyticsView.vue`, `ApiMonitorView.vue`, `UsersView.vue`
+**Views (10):** `LoginView.vue`, `DashboardView.vue`, `ProductsView.vue`, `ProductFormView.vue`, `PoliciesView.vue`, `ClaimsView.vue`, `RiskAnalyticsView.vue`, `ApiMonitorView.vue`, `UsersView.vue`, **`KycReviewView.vue`**
 
 **Components (~8):** `AdminSidebar.vue`, `AdminHeader.vue`, `StatsCard.vue`, `RevenueChart.vue`, `ClaimsChart.vue`, `ProductTable.vue`, `ApiStatusCard.vue`, `TriggerLogTable.vue`

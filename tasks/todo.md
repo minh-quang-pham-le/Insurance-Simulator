@@ -8,8 +8,8 @@
 ## Phase 1 — Foundation
 
 ### Slice 1: Database Foundation [2 members, BLOCKING]
-- [ ] **1.1** Create `backend/models/enums.py` — 7 enum classes matching SPEC Section 6.3
-- [ ] **1.2** Create 10 SQLAlchemy models — all columns, FKs, indexes, relationships per SPEC Section 6.2
+- [ ] **1.1** Create `backend/models/enums.py` — 8 enum classes matching SPEC Section 6.3 (added `KycStatus`)
+- [ ] **1.2** Create 10 SQLAlchemy models — all columns, FKs, indexes, relationships per SPEC Section 6.2. User model includes KYC fields (`phone_number`, `kyc_status`, `kyc_submitted_at`, `kyc_rejection_reason`). WalletTransaction uses `policy_id`/`claim_id` FKs (not polymorphic reference)
   - [ ] `backend/models/user.py`
   - [ ] `backend/models/wallet.py` (Wallet + WalletTransaction)
   - [ ] `backend/models/insurance_product.py`
@@ -23,8 +23,8 @@
 - [ ] **1.3** Uncomment all imports in `backend/models/__init__.py`
 - [ ] **1.4** Generate and verify Alembic migration (`alembic revision --autogenerate`)
 - [ ] **1.5** Create 10 Pydantic schema files in `backend/schemas/`
-  - [ ] `auth.py` (RegisterRequest, LoginRequest, TokenResponse, RefreshRequest)
-  - [ ] `user.py` (UserResponse, UserUpdate)
+  - [ ] `auth.py` (RegisterRequest, LoginRequest, TokenResponse, RefreshRequest, **KycSubmitRequest**)
+  - [ ] `user.py` (UserResponse incl. kyc_status, UserUpdate)
   - [ ] `wallet.py` (TopUpRequest, WalletResponse, TransactionResponse, TransactionListResponse)
   - [ ] `insurance.py` (ProductCreate, ProductUpdate, ProductResponse, ProductListResponse)
   - [ ] `policy.py` (PremiumCalculateRequest/Response, PurchaseRequest, PolicyResponse, PolicyListResponse)
@@ -32,7 +32,7 @@
   - [ ] `simulation.py` (SimulationConfigResponse, TriggerCheckRequest/Response, SimulationLogRequest)
   - [ ] `chat.py` (ChatMessageRequest/Response, ChatSessionResponse)
   - [ ] `notification.py` (NotificationResponse, UnreadCountResponse)
-  - [ ] `admin.py` (DashboardMetrics, RiskAnalyticsResponse)
+  - [ ] `admin.py` (DashboardMetrics, RiskAnalyticsResponse, **KycReviewRequest**)
 - [ ] **1.6** Create seed data
   - [ ] `backend/seed/products.json` — 5 product definitions from SPEC Section 5
   - [ ] `backend/seed/risk_data.json` — 250+ historical event records
@@ -44,20 +44,20 @@
 
 ### Slice 2: Authentication [2 members]
 - [ ] **2.1** Create `backend/middleware/auth.py` — JWT verify, get_current_user, require_admin
-- [ ] **2.2** Create `backend/services/auth_service.py` — register, login, refresh, bcrypt
-- [ ] **2.3** Create `backend/routers/auth.py` — POST register/login/refresh, GET me
+- [ ] **2.2** Create `backend/services/auth_service.py` — register (kyc_status=NOT_SUBMITTED), login, refresh, bcrypt, **submit_kyc**, **get_kyc_status**
+- [ ] **2.3** Create `backend/routers/auth.py` — POST register/login/refresh, GET me, **POST kyc/submit, GET kyc/status**
 - [ ] **2.4** Frontend scaffolding (both apps)
   - [ ] User app: index.html, vite.config.js, tailwind.config.js, postcss.config.js, main.js, App.vue, main.css, router/index.js, services/api.js, stores/auth.js
   - [ ] Admin app: same scaffold files (port 5174, sidebar layout)
 - [ ] **2.5** Auth pages
-  - [ ] User: LoginView.vue, RegisterView.vue, HomeView.vue, AppHeader.vue, authService.js
+  - [ ] User: LoginView.vue, RegisterView.vue, HomeView.vue, AppHeader.vue, authService.js, **KycView.vue**
   - [ ] Admin: LoginView.vue, AdminSidebar.vue, AdminHeader.vue
 
 ---
 
 ### Slice 3: Wallet System [2 members]
-- [ ] **3.1** Create `backend/services/wallet_service.py` — top_up, deduct, credit, with FOR UPDATE locking
-- [ ] **3.2** Create `backend/routers/wallet.py` — GET balance, POST topup, GET transactions
+- [ ] **3.1** Create `backend/services/wallet_service.py` — top_up, deduct, credit, with FOR UPDATE locking. WalletTransaction links via `policy_id`/`claim_id` FKs
+- [ ] **3.2** Create `backend/routers/wallet.py` — GET balance, POST topup (**KYC VERIFIED required**), GET transactions
 - [ ] **3.3** Wallet frontend — walletService.js, stores/wallet.js, WalletView.vue, BalanceCard.vue, TransactionList.vue
 
 ---
@@ -72,7 +72,7 @@
 
 ### Slice 5: Policy Purchase [2 members]
 - [ ] **5.1** Create `backend/services/risk_engine.py` — premium formula, season/location factors, risk score
-- [ ] **5.2** Create `backend/services/policy_service.py` — atomic purchase, cancel with refund, expire
+- [ ] **5.2** Create `backend/services/policy_service.py` — **KYC VERIFIED check before purchase**; atomic purchase, cancel with refund, expire
 - [ ] **5.3** Create `backend/routers/policies.py` — calculate-premium, purchase, list, cancel
 - [ ] **5.4** Purchase UI — PremiumCalculator.vue, MyPoliciesView.vue, DashboardView.vue
 
@@ -87,19 +87,20 @@
 ---
 
 ### Slice 7: Admin Dashboard [1-2 members]
-- [ ] **7.1** Create `backend/routers/admin.py` — dashboard metrics, user/policy/claim lists, claim review
-- [ ] **7.2** Admin dashboard UI — DashboardView.vue, PoliciesView.vue, UsersView.vue, StatsCard.vue
+- [ ] **7.1** Create `backend/routers/admin.py` — dashboard metrics, user/policy/claim lists, claim review, **GET kyc/pending, PATCH kyc/{user_id}** (approve/reject)
+- [ ] **7.2** Admin dashboard UI — DashboardView.vue, PoliciesView.vue, UsersView.vue, StatsCard.vue, **KycReviewView.vue**
 
 ---
 
 ### Phase 1 Checkpoint
 - [ ] Full auth flow works on both apps
-- [ ] Wallet top-up, balance, transactions work
+- [ ] **KYC flow: user submits → admin approves/rejects → status enforced on transactions**
+- [ ] Wallet top-up, balance, transactions work **(top-up blocked without KYC)**
 - [ ] 5 products visible in catalog with risk scores
-- [ ] Policy purchase and cancel flow complete
+- [ ] Policy purchase and cancel flow complete **(purchase blocked without KYC)**
 - [ ] Manual claim -> admin review -> payout works
 - [ ] Notifications with unread count
-- [ ] Admin dashboard shows real metrics
+- [ ] Admin dashboard shows real metrics **+ KYC review queue**
 - [ ] Swagger docs at /docs are complete
 
 ---
@@ -153,7 +154,7 @@
 - [ ] **11.2** Simulation animations — 5 product-specific CSS/SVG animations
 
 ### Slice 12: Hardening [2 members]
-- [ ] **12.1** Global error handler middleware
+- [ ] **12.1** Global error handler middleware (custom exceptions + structured logging used from Phase 1; this slice adds centralized handler + edge case hardening)
 - [ ] **12.2** Input validation + rate limiting
 - [ ] **12.3** Query optimization (joinedload, pagination)
 - [ ] **12.4** Security review (auth, RBAC, CORS, SQL injection)
