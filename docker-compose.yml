@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: insurance_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-insurance_simulator_db}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI Backend
+  backend:
+    build: ./backend
+    container_name: insurance_backend
+    restart: always
+    command: uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-insurance_simulator_db}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-super-secret-dev-key}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENWEATHERMAP_API_KEY=${OPENWEATHERMAP_API_KEY:-}
+      - AVIATIONSTACK_API_KEY=${AVIATIONSTACK_API_KEY:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Vue 3 — User App
+  frontend-user:
+    build: ./frontend-user
+    container_name: insurance_frontend_user
+    restart: always
+    volumes:
+      - ./frontend-user:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+      - VITE_APP_TITLE=Insurance Simulator
+    depends_on:
+      - backend
+
+  # Vue 3 — Admin Dashboard
+  frontend-admin:
+    build: ./frontend-admin
+    container_name: insurance_frontend_admin
+    restart: always
+    volumes:
+      - ./frontend-admin:/app
+      - /app/node_modules
+    ports:
+      - "5174:5174"
+    environment:
+      - VITE_API_URL=http://localhost:8000/api/v1
+      - VITE_APP_TITLE=Insurance Simulator Admin
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
