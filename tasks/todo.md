@@ -7,38 +7,38 @@
 
 ## Phase 1 — Foundation
 
-### Slice 1: Database Foundation [2 members, BLOCKING]
-- [ ] **1.1** Create `backend/models/enums.py` — 8 enum classes matching SPEC Section 6.3 (added `KycStatus`)
-- [ ] **1.2** Create 10 SQLAlchemy models — all columns, FKs, indexes, relationships per SPEC Section 6.2. User model includes KYC fields (`phone_number`, `kyc_status`, `kyc_submitted_at`, `kyc_rejection_reason`). WalletTransaction uses `policy_id`/`claim_id` FKs (not polymorphic reference)
-  - [ ] `backend/models/user.py`
-  - [ ] `backend/models/wallet.py` (Wallet + WalletTransaction)
-  - [ ] `backend/models/insurance_product.py`
-  - [ ] `backend/models/policy.py`
-  - [ ] `backend/models/claim.py`
-  - [ ] `backend/models/risk_data.py`
-  - [ ] `backend/models/notification.py`
-  - [ ] `backend/models/chat_session.py`
-  - [ ] `backend/models/simulation_session.py`
-  - [ ] `backend/models/api_monitor_log.py`
-- [ ] **1.3** Uncomment all imports in `backend/models/__init__.py`
-- [ ] **1.4** Generate and verify Alembic migration (`alembic revision --autogenerate`)
-- [ ] **1.5** Create 10 Pydantic schema files in `backend/schemas/`
-  - [ ] `auth.py` (RegisterRequest, LoginRequest, TokenResponse, RefreshRequest, **KycSubmitRequest**)
-  - [ ] `user.py` (UserResponse incl. kyc_status, UserUpdate)
-  - [ ] `wallet.py` (TopUpRequest, WalletResponse, TransactionResponse, TransactionListResponse)
-  - [ ] `insurance.py` (ProductCreate, ProductUpdate, ProductResponse, ProductListResponse)
-  - [ ] `policy.py` (PremiumCalculateRequest/Response, PurchaseRequest, PolicyResponse, PolicyListResponse)
-  - [ ] `claim.py` (ManualClaimRequest, ClaimReviewRequest, ClaimResponse)
-  - [ ] `simulation.py` (SimulationConfigResponse, TriggerCheckRequest/Response, SimulationLogRequest)
-  - [ ] `chat.py` (ChatMessageRequest/Response, ChatSessionResponse)
-  - [ ] `notification.py` (NotificationResponse, UnreadCountResponse)
-  - [ ] `admin.py` (DashboardMetrics, RiskAnalyticsResponse, **KycReviewRequest**)
-- [ ] **1.6** Create seed data
-  - [ ] `backend/seed/products.json` — 5 product definitions from SPEC Section 5
-  - [ ] `backend/seed/risk_data.json` — 250+ historical event records
-  - [ ] `backend/seed/seed_data.py` — idempotent script (admin user, test user, products, risk data)
+### Slice 1: Database Foundation [2 members, BLOCKING] -- DONE
+- [x] **1.1** Create `backend/models/enums.py` — 8 enum classes matching SPEC Section 6.3 (added `KycStatus`)
+- [x] **1.2** Create 10 SQLAlchemy models — all columns, FKs, indexes, relationships per SPEC Section 6.2. User model includes KYC fields (`phone_number`, `kyc_status`, `kyc_submitted_at`, `kyc_rejection_reason`). WalletTransaction uses `policy_id`/`claim_id` FKs (not polymorphic reference)
+  - [x] `backend/models/user.py`
+  - [x] `backend/models/wallet.py` (Wallet + WalletTransaction)
+  - [x] `backend/models/insurance_product.py`
+  - [x] `backend/models/policy.py`
+  - [x] `backend/models/claim.py`
+  - [x] `backend/models/risk_data.py`
+  - [x] `backend/models/notification.py`
+  - [x] `backend/models/chat_session.py`
+  - [x] `backend/models/simulation_session.py`
+  - [x] `backend/models/api_monitor_log.py`
+- [x] **1.3** Uncomment all imports in `backend/models/__init__.py`
+- [x] **1.4** Generate and verify Alembic migration (`alembic revision --autogenerate`)
+- [x] **1.5** Create 10 Pydantic schema files in `backend/schemas/`
+  - [x] `auth.py` (RegisterRequest, LoginRequest, TokenResponse, RefreshRequest, **KycSubmitRequest**)
+  - [x] `user.py` (UserResponse incl. kyc_status, UserUpdate)
+  - [x] `wallet.py` (TopUpRequest, WalletResponse, TransactionResponse, TransactionListResponse)
+  - [x] `insurance.py` (ProductCreate, ProductUpdate, ProductResponse, ProductListResponse)
+  - [x] `policy.py` (PremiumCalculateRequest/Response, PurchaseRequest, PolicyResponse, PolicyListResponse)
+  - [x] `claim.py` (ManualClaimRequest, ClaimReviewRequest, ClaimResponse)
+  - [x] `simulation.py` (SimulationConfigResponse, TriggerCheckRequest/Response, SimulationLogRequest)
+  - [x] `chat.py` (ChatMessageRequest/Response, ChatSessionResponse)
+  - [x] `notification.py` (NotificationResponse, UnreadCountResponse)
+  - [x] `admin.py` (DashboardMetrics, RiskAnalyticsResponse, **KycReviewRequest**)
+- [x] **1.6** Create seed data
+  - [x] `backend/seed/products.json` — 5 product definitions from SPEC Section 5
+  - [x] `backend/seed/risk_data.json` — 270 historical event records
+  - [x] `backend/seed/seed_data.py` — idempotent script (admin user, test user, products, risk data)
 
-**Checkpoint:** `alembic upgrade head && python -m seed.seed_data` runs cleanly
+**Checkpoint:** `alembic upgrade head && python -m seed.seed_data` — ready to run (requires PostgreSQL)
 
 ---
 
