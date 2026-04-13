@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Insurance Simulator — Entity Relationship Diagram</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --surface: #1e293b;
+    --border: #334155;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --accent: #38bdf8;
+    --pk: #facc15;
+    --fk: #a78bfa;
+    --enum: #34d399;
+    --check: #fb923c;
+    --line-user: #38bdf8;
+    --line-wallet: #a78bfa;
+    --line-product: #34d399;
+    --line-policy: #fb923c;
+    --line-claim: #f87171;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: auto;
+  }
+  h1 {
+    text-align: center;
+    padding: 24px 0 8px;
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 20px;
+  }
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    font-size: 0.78rem;
+  }
+  .legend span {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .legend .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .canvas-wrapper {
+    width: 100%;
+    overflow: auto;
+    padding: 0 20px 40px;
+  }
+  svg {
+    display: block;
+    margin: 0 auto;
+  }
+  /* Table styles inside SVG via foreignObject */
+  .erd-table {
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: 11px;
+    width: 100%;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.3);
+  }
+  .erd-table .header {
+    background: linear-gradient(135deg, #1e40af, #7c3aed);
+    color: #fff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 7px 10px;
+    text-align: center;
+    letter-spacing: 0.03em;
+  }
+  .erd-table.standalone .header {
+    background: linear-gradient(135deg, #475569, #64748b);
+  }
+  .erd-table table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .erd-table td {
+    padding: 3px 8px;
+    border-top: 1px solid var(--border);
+    white-space: nowrap;
+    color: var(--text);
+  }
+  .erd-table tr:hover td {
+    background: rgba(56,189,248,0.06);
+  }
+  .erd-table .col-name { font-weight: 600; min-width: 110px; }
+  .erd-table .col-type { color: var(--muted); min-width: 95px; }
+  .erd-table .col-badge { text-align: right; min-width: 30px; }
+  .badge {
+    display: inline-block;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+  .badge-pk { background: rgba(250,204,21,0.18); color: var(--pk); }
+  .badge-fk { background: rgba(167,139,250,0.18); color: var(--fk); }
+  .badge-uk { background: rgba(56,189,248,0.18); color: var(--accent); }
+  .badge-enum { background: rgba(52,211,153,0.15); color: var(--enum); }
+  .badge-ck { background: rgba(251,146,46,0.18); color: var(--check); }
+  .badge-idx { background: rgba(148,163,184,0.15); color: var(--muted); }
+  .badge-nn { background: rgba(248,113,113,0.15); color: #f87171; }
+
+  /* Relationship lines */
+  .rel-line { stroke-width: 1.5; fill: none; opacity: 0.5; }
+  .rel-line:hover { opacity: 1; stroke-width: 2.5; }
+  .rel-label {
+    font-size: 9px;
+    fill: var(--muted);
+    font-weight: 600;
+  }
+  marker path { stroke: none; }
+</style>
+</head>
+<body>
+<h1>Insurance Simulator — ERD</h1>
+<p class="subtitle">11 models &bull; 8 enums &bull; 11 indexes &bull; SPEC Section 6.2</p>
+<div class="legend">
+  <span><span class="dot" style="background:var(--pk)"></span> Primary Key</span>
+  <span><span class="dot" style="background:var(--fk)"></span> Foreign Key</span>
+  <span><span class="dot" style="background:var(--accent)"></span> Unique</span>
+  <span><span class="dot" style="background:var(--enum)"></span> Enum</span>
+  <span><span class="dot" style="background:var(--check)"></span> Check Constraint</span>
+</div>
+<div class="canvas-wrapper">
+<svg xmlns="http://www.w3.org/2000/svg" width="1520" height="1340" viewBox="0 0 1520 1340">
+<defs>
+  <marker id="arrow-one" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path d="M0,0 L8,3 L0,6" fill="var(--muted)" opacity="0.6"/></marker>
+  <marker id="arrow-many" markerWidth="10" markerHeight="8" refX="0" refY="4" orient="auto"><path d="M10,0 L0,4 L10,8 M0,4 L10,4" stroke="var(--muted)" fill="none" stroke-width="1.2" opacity="0.6"/></marker>
+</defs>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- RELATIONSHIP LINES (drawn first, behind tables) -->
+<!-- ═══════════════════════════════════════════════ -->
+
+<!-- User ──── Wallet (1:1) -->
+<path class="rel-line" d="M340,195 L440,195" stroke="var(--line-user)" marker-start="url(#arrow-one)" marker-end="url(#arrow-one)"/>
+<text class="rel-label" x="370" y="188">1:1</text>
+
+<!-- Wallet ──── WalletTransaction (1:N) -->
+<path class="rel-line" d="M600,290 L600,380" stroke="var(--line-wallet)" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="607" y="340">1:N</text>
+
+<!-- User ──── Policy (1:N) -->
+<path class="rel-line" d="M170,370 L170,570" stroke="var(--line-user)" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="177" y="470">1:N</text>
+
+<!-- InsuranceProduct ──── Policy (1:N) -->
+<path class="rel-line" d="M520,570 L340,620" stroke="var(--line-product)" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="420" y="585">1:N</text>
+
+<!-- Policy ──── Claim (1:N) -->
+<path class="rel-line" d="M200,790 L200,880" stroke="var(--line-policy)" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="207" y="840">1:N</text>
+
+<!-- Policy ──── WalletTransaction (policy_id FK) -->
+<path class="rel-line" d="M310,660 Q450,520 540,490" stroke="var(--line-policy)" stroke-dasharray="6,3" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="400" y="555">policy_id</text>
+
+<!-- Claim ──── WalletTransaction (claim_id FK) -->
+<path class="rel-line" d="M340,950 Q500,650 600,490" stroke="var(--line-claim)" stroke-dasharray="6,3" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="470" y="680">claim_id</text>
+
+<!-- User ──── Notification (1:N) -->
+<path class="rel-line" d="M50,370 Q30,610 50,880" stroke="var(--line-user)" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="15" y="630">1:N</text>
+
+<!-- User ──── ChatSession (1:N) -->
+<path class="rel-line" d="M170,370 Q100,750 240,1110" stroke="var(--line-user)" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="105" y="760">1:N</text>
+
+<!-- User ──── SimulationSession (1:N) -->
+<path class="rel-line" d="M280,370 Q350,750 500,1110" stroke="var(--line-user)" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="355" y="760">1:N</text>
+
+<!-- InsuranceProduct ──── ChatSession (context) -->
+<path class="rel-line" d="M640,570 Q500,900 380,1110" stroke="var(--line-product)" stroke-dasharray="6,3" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="540" y="855">context</text>
+
+<!-- InsuranceProduct ──── SimulationSession -->
+<path class="rel-line" d="M700,570 Q680,900 620,1110" stroke="var(--line-product)" marker-end="url(#arrow-many)"/>
+<text class="rel-label" x="700" y="855">1:N</text>
+
+<!-- User ──── InsuranceProduct (created_by) -->
+<path class="rel-line" d="M300,300 Q450,400 600,430" stroke="var(--line-user)" stroke-dasharray="6,3"/>
+<text class="rel-label" x="430" y="388">created_by</text>
+
+<!-- User ──── Claim (reviewed_by) -->
+<path class="rel-line" d="M100,370 Q60,700 120,930" stroke="var(--line-user)" stroke-dasharray="6,3"/>
+<text class="rel-label" x="50" y="700">reviewed_by</text>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- TABLE ENTITIES (foreignObject for HTML tables) -->
+<!-- ═══════════════════════════════════════════════ -->
+
+<!-- ─── User ─── -->
+<foreignObject x="30" y="30" width="310" height="340">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">User</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">email</td><td class="col-type">VARCHAR(255)</td><td class="col-badge"><span class="badge badge-uk">UK</span></td></tr>
+    <tr><td class="col-name">password_hash</td><td class="col-type">VARCHAR(255)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">full_name</td><td class="col-type">VARCHAR(100)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">role</td><td class="col-type">UserRole</td><td class="col-badge"><span class="badge badge-enum">ENUM</span></td></tr>
+    <tr><td class="col-name">phone_number</td><td class="col-type">VARCHAR(20)</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">kyc_status</td><td class="col-type">KycStatus</td><td class="col-badge"><span class="badge badge-enum">ENUM</span></td></tr>
+    <tr><td class="col-name">kyc_submitted_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">kyc_rejection_reason</td><td class="col-type">VARCHAR(500)</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">is_active</td><td class="col-type">BOOLEAN</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── Wallet ─── -->
+<foreignObject x="440" y="30" width="280" height="210">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">Wallet</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">user_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span> <span class="badge badge-uk">UK</span></td></tr>
+    <tr><td class="col-name">balance</td><td class="col-type">DECIMAL(15,2)</td><td class="col-badge"><span class="badge badge-ck">CK&ge;0</span></td></tr>
+    <tr><td class="col-name">currency</td><td class="col-type">VARCHAR(10)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── WalletTransaction ─── -->
+<foreignObject x="440" y="290" width="310" height="280">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">WalletTransaction</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">wallet_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">type</td><td class="col-type">TransactionType</td><td class="col-badge"><span class="badge badge-enum">ENUM</span></td></tr>
+    <tr><td class="col-name">amount</td><td class="col-type">DECIMAL(15,2)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">balance_after</td><td class="col-type">DECIMAL(15,2)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">description</td><td class="col-type">VARCHAR(500)</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">policy_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">claim_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── InsuranceProduct ─── -->
+<foreignObject x="820" y="30" width="310" height="440">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">InsuranceProduct</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">name</td><td class="col-type">VARCHAR(200)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">category</td><td class="col-type">ProductCategory</td><td class="col-badge"><span class="badge badge-enum">ENUM</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">description</td><td class="col-type">TEXT</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">short_description</td><td class="col-type">VARCHAR(300)</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">icon_url</td><td class="col-type">VARCHAR(500)</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">base_payout</td><td class="col-type">DECIMAL(15,2)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">min_duration_days</td><td class="col-type">INTEGER</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">max_duration_days</td><td class="col-type">INTEGER</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">risk_margin</td><td class="col-type">DECIMAL(5,4)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">parameters_schema</td><td class="col-type">JSONB</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">trigger_conditions</td><td class="col-type">JSONB</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">is_active</td><td class="col-type">BOOLEAN</td><td class="col-badge"><span class="badge badge-nn">NN</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">created_by</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── Policy ─── -->
+<foreignObject x="30" y="580" width="310" height="310">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">Policy</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">user_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">product_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">premium_paid</td><td class="col-type">DECIMAL(15,2)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">payout_amount</td><td class="col-type">DECIMAL(15,2)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">status</td><td class="col-type">PolicyStatus</td><td class="col-badge"><span class="badge badge-enum">ENUM</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">parameters</td><td class="col-type">JSONB</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">start_date</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">end_date</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── Claim ─── -->
+<foreignObject x="30" y="920" width="340" height="330">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">Claim</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">policy_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">trigger_type</td><td class="col-type">TriggerType</td><td class="col-badge"><span class="badge badge-enum">ENUM</span></td></tr>
+    <tr><td class="col-name">trigger_event</td><td class="col-type">VARCHAR(500)</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">trigger_data</td><td class="col-type">JSONB</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">evidence_urls</td><td class="col-type">JSONB</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">status</td><td class="col-type">ClaimStatus</td><td class="col-badge"><span class="badge badge-enum">ENUM</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">payout_amount</td><td class="col-type">DECIMAL(15,2)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">reviewed_by</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">processed_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── RiskData ─── -->
+<foreignObject x="820" y="520" width="310" height="290">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">RiskData</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">product_category</td><td class="col-type">ProductCategory</td><td class="col-badge"><span class="badge badge-enum">ENUM</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">region</td><td class="col-type">VARCHAR(100)</td><td class="col-badge"><span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">event_date</td><td class="col-type">DATE</td><td class="col-badge"><span class="badge badge-nn">NN</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">event_type</td><td class="col-type">VARCHAR(100)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">event_severity</td><td class="col-type">DECIMAL(10,2)</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">event_data</td><td class="col-type">JSONB</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">source</td><td class="col-type">VARCHAR(100)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- Logical link: RiskData ←→ InsuranceProduct via category -->
+<line x1="975" y1="470" x2="975" y2="520" stroke="var(--muted)" stroke-dasharray="3,3" stroke-width="1"/>
+<text class="rel-label" x="985" y="500">via category</text>
+
+<!-- ─── Notification ─── -->
+<foreignObject x="440" y="630" width="310" height="300">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">Notification</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">user_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">type</td><td class="col-type">NotificationType</td><td class="col-badge"><span class="badge badge-enum">ENUM</span></td></tr>
+    <tr><td class="col-name">title</td><td class="col-type">VARCHAR(200)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">message</td><td class="col-type">TEXT</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">is_read</td><td class="col-type">BOOLEAN</td><td class="col-badge"><span class="badge badge-nn">NN</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">reference_type</td><td class="col-type">VARCHAR(20)</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">reference_id</td><td class="col-type">UUID</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span> <span class="badge badge-idx">IDX</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── ChatSession ─── -->
+<foreignObject x="200" y="1090" width="310" height="210">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">ChatSession</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">user_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">context_product_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">messages</td><td class="col-type">JSONB</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">updated_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── SimulationSession ─── -->
+<foreignObject x="560" y="1090" width="310" height="210">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table">
+  <div class="header">SimulationSession</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">user_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">product_id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-fk">FK</span></td></tr>
+    <tr><td class="col-name">input_parameters</td><td class="col-type">JSONB</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">triggers_activated</td><td class="col-type">JSONB</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">created_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ─── ApiMonitorLog (standalone) ─── -->
+<foreignObject x="1180" y="520" width="310" height="300">
+<div xmlns="http://www.w3.org/1999/xhtml" class="erd-table standalone">
+  <div class="header">ApiMonitorLog (standalone)</div>
+  <table>
+    <tr><td class="col-name">id</td><td class="col-type">UUID</td><td class="col-badge"><span class="badge badge-pk">PK</span></td></tr>
+    <tr><td class="col-name">api_name</td><td class="col-type">VARCHAR(50)</td><td class="col-badge"><span class="badge badge-nn">NN</span> <span class="badge badge-idx">IDX</span></td></tr>
+    <tr><td class="col-name">endpoint</td><td class="col-type">VARCHAR(500)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">method</td><td class="col-type">VARCHAR(10)</td><td class="col-badge"><span class="badge badge-nn">NN</span></td></tr>
+    <tr><td class="col-name">status_code</td><td class="col-type">INTEGER</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">response_time_ms</td><td class="col-type">INTEGER</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">response_summary</td><td class="col-type">JSONB</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">error_message</td><td class="col-type">TEXT</td><td class="col-badge"></td></tr>
+    <tr><td class="col-name">checked_at</td><td class="col-type">TIMESTAMP</td><td class="col-badge"><span class="badge badge-nn">NN</span> <span class="badge badge-idx">IDX</span></td></tr>
+  </table>
+</div>
+</foreignObject>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- ENUM BOXES -->
+<!-- ═══════════════════════════════════════════════ -->
+
+<foreignObject x="820" y="860" width="660" height="460">
+<div xmlns="http://www.w3.org/1999/xhtml" style="display:grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+
+  <div class="erd-table" style="border-color:#34d399;">
+    <div class="header" style="background:linear-gradient(135deg,#065f46,#059669); font-size:11px;">UserRole</div>
+    <table><tr><td style="padding:4px 8px; border:none; color:#94a3b8; font-size:10px;">USER &bull; ADMIN</td></tr></table>
+  </div>
+
+  <div class="erd-table" style="border-color:#34d399;">
+    <div class="header" style="background:linear-gradient(135deg,#065f46,#059669); font-size:11px;">KycStatus</div>
+    <table><tr><td style="padding:4px 8px; border:none; color:#94a3b8; font-size:10px;">NOT_SUBMITTED &bull; PENDING &bull; VERIFIED &bull; REJECTED</td></tr></table>
+  </div>
+
+  <div class="erd-table" style="border-color:#34d399;">
+    <div class="header" style="background:linear-gradient(135deg,#065f46,#059669); font-size:11px;">TransactionType</div>
+    <table><tr><td style="padding:4px 8px; border:none; color:#94a3b8; font-size:10px;">TOP_UP &bull; PREMIUM_PAYMENT &bull; PAYOUT &bull; REFUND</td></tr></table>
+  </div>
+
+  <div class="erd-table" style="border-color:#34d399;">
+    <div class="header" style="background:linear-gradient(135deg,#065f46,#059669); font-size:11px;">ProductCategory</div>
+    <table><tr><td style="padding:4px 8px; border:none; color:#94a3b8; font-size:10px;">FLIGHT_DELAY &bull; CROP_WEATHER &bull; GADGET &bull; NATURAL_DISASTER &bull; RAINFALL_EVENT</td></tr></table>
+  </div>
+
+  <div class="erd-table" style="border-color:#34d399;">
+    <div class="header" style="background:linear-gradient(135deg,#065f46,#059669); font-size:11px;">PolicyStatus</div>
+    <table><tr><td style="padding:4px 8px; border:none; color:#94a3b8; font-size:10px;">ACTIVE &bull; EXPIRED &bull; CLAIMED &bull; CANCELLED</td></tr></table>
+  </div>
+
+  <div class="erd-table" style="border-color:#34d399;">
+    <div class="header" style="background:linear-gradient(135deg,#065f46,#059669); font-size:11px;">TriggerType</div>
+    <table><tr><td style="padding:4px 8px; border:none; color:#94a3b8; font-size:10px;">AUTOMATIC &bull; MANUAL</td></tr></table>
+  </div>
+
+  <div class="erd-table" style="border-color:#34d399;">
+    <div class="header" style="background:linear-gradient(135deg,#065f46,#059669); font-size:11px;">ClaimStatus</div>
+    <table><tr><td style="padding:4px 8px; border:none; color:#94a3b8; font-size:10px;">PENDING &bull; AUTO_APPROVED &bull; MANUAL_REVIEW &bull; APPROVED &bull; PAID &bull; REJECTED</td></tr></table>
+  </div>
+
+  <div class="erd-table" style="border-color:#34d399;">
+    <div class="header" style="background:linear-gradient(135deg,#065f46,#059669); font-size:11px;">NotificationType</div>
+    <table><tr><td style="padding:4px 8px; border:none; color:#94a3b8; font-size:10px;">CLAIM_TRIGGERED &bull; PAYOUT_RECEIVED &bull; POLICY_EXPIRING &bull; POLICY_EXPIRED &bull; SYSTEM</td></tr></table>
+  </div>
+
+</div>
+</foreignObject>
+
+</svg>
+</div>
+</body>
+</html>
