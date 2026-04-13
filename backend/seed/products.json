@@ -1,0 +1,358 @@
+[
+  {
+    "name": "Flight Delay Protection",
+    "category": "FLIGHT_DELAY",
+    "description": "Get automatic payout when your flight is delayed beyond your chosen threshold or cancelled.",
+    "short_description": "Automatic payout for flight delays and cancellations.",
+    "base_payout": 500.00,
+    "min_duration_days": 1,
+    "max_duration_days": 7,
+    "risk_margin": 0.25,
+    "parameters_schema": {
+      "fields": [
+        {
+          "name": "airline_code",
+          "type": "select",
+          "label": "Airline",
+          "required": true,
+          "options": [
+            {"value": "VN", "label": "Vietnam Airlines"},
+            {"value": "VJ", "label": "VietJet Air"},
+            {"value": "QH", "label": "Bamboo Airways"}
+          ]
+        },
+        {
+          "name": "flight_number",
+          "type": "string",
+          "label": "Flight Number",
+          "required": true,
+          "placeholder": "e.g., VN123"
+        },
+        {
+          "name": "departure_date",
+          "type": "date",
+          "label": "Departure Date",
+          "required": true
+        },
+        {
+          "name": "delay_threshold_minutes",
+          "type": "number",
+          "label": "Delay Threshold (minutes)",
+          "required": true,
+          "default": 120,
+          "min": 60,
+          "max": 360,
+          "step": 30
+        }
+      ]
+    },
+    "trigger_conditions": {
+      "type": "PARAMETRIC",
+      "api_source": "aviation",
+      "rules": [
+        {
+          "field": "delay_minutes",
+          "operator": ">=",
+          "threshold_param": "delay_threshold_minutes",
+          "payout_multiplier": 1.0
+        },
+        {
+          "field": "status",
+          "operator": "==",
+          "value": "CANCELLED",
+          "payout_multiplier": 1.5
+        }
+      ]
+    }
+  },
+  {
+    "name": "Crop Weather Insurance",
+    "category": "CROP_WEATHER",
+    "description": "Protect your harvest against extreme weather conditions. Automatic payout when weather thresholds are breached.",
+    "short_description": "Weather-triggered crop protection for farmers.",
+    "base_payout": 1000.00,
+    "min_duration_days": 30,
+    "max_duration_days": 180,
+    "risk_margin": 0.30,
+    "parameters_schema": {
+      "fields": [
+        {
+          "name": "location_name",
+          "type": "string",
+          "label": "Farm Location",
+          "required": true,
+          "placeholder": "e.g., Can Tho, Mekong Delta"
+        },
+        {
+          "name": "location_lat",
+          "type": "number",
+          "label": "Latitude",
+          "required": true
+        },
+        {
+          "name": "location_lon",
+          "type": "number",
+          "label": "Longitude",
+          "required": true
+        },
+        {
+          "name": "crop_type",
+          "type": "select",
+          "label": "Crop Type",
+          "required": true,
+          "options": [
+            {"value": "rice", "label": "Rice"},
+            {"value": "coffee", "label": "Coffee"},
+            {"value": "pepper", "label": "Pepper"},
+            {"value": "cashew", "label": "Cashew"}
+          ]
+        },
+        {
+          "name": "weather_metric",
+          "type": "select",
+          "label": "Weather Risk",
+          "required": true,
+          "options": [
+            {"value": "rainfall_mm", "label": "Excessive Rainfall (flood)"},
+            {"value": "temp_celsius", "label": "Extreme Temperature"},
+            {"value": "drought_days", "label": "Drought (no rain for X days)"}
+          ]
+        },
+        {
+          "name": "threshold",
+          "type": "number",
+          "label": "Trigger Threshold",
+          "required": true
+        },
+        {
+          "name": "comparison",
+          "type": "select",
+          "label": "Trigger When",
+          "required": true,
+          "options": [
+            {"value": "ABOVE", "label": "Above threshold"},
+            {"value": "BELOW", "label": "Below threshold"}
+          ]
+        }
+      ]
+    },
+    "trigger_conditions": {
+      "type": "PARAMETRIC",
+      "api_source": "openweathermap",
+      "check_interval_hours": 6,
+      "rules": [
+        {
+          "field": "{weather_metric}",
+          "operator": "{comparison}",
+          "threshold_param": "threshold",
+          "payout_multiplier": 1.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "Gadget Repair Coverage",
+    "category": "GADGET",
+    "description": "Coverage for accidental damage to your personal devices. Submit a claim with evidence for manual review.",
+    "short_description": "Device protection with manual claim review.",
+    "base_payout": 300.00,
+    "min_duration_days": 30,
+    "max_duration_days": 365,
+    "risk_margin": 0.35,
+    "parameters_schema": {
+      "fields": [
+        {
+          "name": "device_type",
+          "type": "select",
+          "label": "Device Type",
+          "required": true,
+          "options": [
+            {"value": "smartphone", "label": "Smartphone"},
+            {"value": "laptop", "label": "Laptop"},
+            {"value": "tablet", "label": "Tablet"},
+            {"value": "smartwatch", "label": "Smartwatch"}
+          ]
+        },
+        {
+          "name": "brand",
+          "type": "string",
+          "label": "Brand",
+          "required": true
+        },
+        {
+          "name": "model",
+          "type": "string",
+          "label": "Model",
+          "required": true
+        },
+        {
+          "name": "purchase_date",
+          "type": "date",
+          "label": "Device Purchase Date",
+          "required": true
+        },
+        {
+          "name": "coverage_type",
+          "type": "select",
+          "label": "Coverage Type",
+          "required": true,
+          "options": [
+            {"value": "SCREEN_DAMAGE", "label": "Screen Damage"},
+            {"value": "WATER_DAMAGE", "label": "Water Damage"},
+            {"value": "MALFUNCTION", "label": "Hardware Malfunction"},
+            {"value": "ALL_RISK", "label": "All Risks (higher premium)"}
+          ]
+        }
+      ]
+    },
+    "trigger_conditions": {
+      "type": "MANUAL",
+      "requires": ["description", "photo_evidence"],
+      "review": "ADMIN"
+    }
+  },
+  {
+    "name": "Typhoon Insurance",
+    "category": "NATURAL_DISASTER",
+    "description": "Automatic payout when a typhoon or severe weather event meets the alert threshold in your area.",
+    "short_description": "Typhoon and severe weather protection.",
+    "base_payout": 2000.00,
+    "min_duration_days": 30,
+    "max_duration_days": 180,
+    "risk_margin": 0.20,
+    "parameters_schema": {
+      "fields": [
+        {
+          "name": "location_name",
+          "type": "string",
+          "label": "Location",
+          "required": true,
+          "placeholder": "e.g., Da Nang"
+        },
+        {
+          "name": "location_lat",
+          "type": "number",
+          "label": "Latitude",
+          "required": true
+        },
+        {
+          "name": "location_lon",
+          "type": "number",
+          "label": "Longitude",
+          "required": true
+        },
+        {
+          "name": "disaster_type",
+          "type": "select",
+          "label": "Disaster Type",
+          "required": true,
+          "options": [
+            {"value": "TYPHOON", "label": "Typhoon"},
+            {"value": "FLOOD", "label": "Flood"},
+            {"value": "EARTHQUAKE", "label": "Earthquake"}
+          ]
+        },
+        {
+          "name": "severity_threshold",
+          "type": "number",
+          "label": "Minimum Severity Level (1-5)",
+          "required": true,
+          "min": 1,
+          "max": 5,
+          "default": 3
+        }
+      ]
+    },
+    "trigger_conditions": {
+      "type": "PARAMETRIC",
+      "api_source": "openweathermap_alerts",
+      "rules": [
+        {
+          "field": "alert_severity",
+          "operator": ">=",
+          "threshold_param": "severity_threshold",
+          "payout_multiplier": 1.0
+        },
+        {
+          "field": "alert_severity",
+          "operator": ">=",
+          "value": 5,
+          "payout_multiplier": 2.0
+        }
+      ]
+    }
+  },
+  {
+    "name": "Rainfall Event Insurance",
+    "category": "RAINFALL_EVENT",
+    "description": "Protection against rain ruining your outdoor event. Automatic payout if rainfall exceeds threshold on your event date.",
+    "short_description": "Rain protection for outdoor events.",
+    "base_payout": 200.00,
+    "min_duration_days": 1,
+    "max_duration_days": 3,
+    "risk_margin": 0.20,
+    "parameters_schema": {
+      "fields": [
+        {
+          "name": "event_name",
+          "type": "string",
+          "label": "Event Name",
+          "required": true,
+          "placeholder": "e.g., Wedding, Festival"
+        },
+        {
+          "name": "location_name",
+          "type": "string",
+          "label": "Location",
+          "required": true
+        },
+        {
+          "name": "location_lat",
+          "type": "number",
+          "label": "Latitude",
+          "required": true
+        },
+        {
+          "name": "location_lon",
+          "type": "number",
+          "label": "Longitude",
+          "required": true
+        },
+        {
+          "name": "event_date",
+          "type": "date",
+          "label": "Event Date",
+          "required": true
+        },
+        {
+          "name": "rainfall_threshold_mm",
+          "type": "number",
+          "label": "Rainfall Threshold (mm)",
+          "required": true,
+          "default": 10,
+          "min": 5,
+          "max": 100
+        }
+      ]
+    },
+    "trigger_conditions": {
+      "type": "PARAMETRIC",
+      "api_source": "openweathermap",
+      "check_on": "event_date",
+      "rules": [
+        {
+          "field": "rainfall_mm",
+          "operator": ">=",
+          "threshold_param": "rainfall_threshold_mm",
+          "payout_multiplier": 1.0
+        },
+        {
+          "field": "rainfall_mm",
+          "operator": ">=",
+          "value": 50,
+          "payout_multiplier": 1.5
+        }
+      ]
+    }
+  }
+]
