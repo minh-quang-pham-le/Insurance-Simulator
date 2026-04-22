@@ -40,6 +40,10 @@
 
 **Checkpoint:** `alembic upgrade head && python -m seed.seed_data` — ready to run (requires PostgreSQL)
 
+Vấn đề cần lưu ý: 
+- Bcrypt và Passlib bị xung đột version, đã fix. 
+- Không cần cài PostgreSQL local, tránh bị xung đột port 5432
+- Đã xong, người hoàn thành: Quang + Vinh, người check: Thái
 ---
 
 ### Slice 2: Authentication [2 members]
