@@ -28,11 +28,14 @@ async def health_check():
 
 # --- Register routers ---
 # Uncomment as each router is implemented:
-#
-# from routers import auth, wallet, insurance, policies, claims
+
+from routers import auth
+
+app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
+
+# from routers import wallet, insurance, policies, claims
 # from routers import simulation, chatbot, notifications, admin
 #
-# app.include_router(auth.router, prefix="/api/v1/auth", tags=["Auth"])
 # app.include_router(wallet.router, prefix="/api/v1/wallet", tags=["Wallet"])
 # app.include_router(insurance.router, prefix="/api/v1/insurance", tags=["Insurance"])
 # app.include_router(policies.router, prefix="/api/v1/policies", tags=["Policies"])
