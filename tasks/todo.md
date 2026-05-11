@@ -46,23 +46,68 @@ Vấn đề cần lưu ý:
 - Đã xong, người hoàn thành: Quang + Vinh, người check: Thái
 ---
 
-### Slice 2: Authentication [2 members]
-- [ ] **2.1** Create `backend/middleware/auth.py` — JWT verify, get_current_user, require_admin
-- [ ] **2.2** Create `backend/services/auth_service.py` — register (kyc_status=NOT_SUBMITTED), login, refresh, bcrypt, **submit_kyc**, **get_kyc_status**
-- [ ] **2.3** Create `backend/routers/auth.py` — POST register/login/refresh, GET me, **POST kyc/submit, GET kyc/status**
-- [ ] **2.4** Frontend scaffolding (both apps)
-  - [ ] User app: index.html, vite.config.js, tailwind.config.js, postcss.config.js, main.js, App.vue, main.css, router/index.js, services/api.js, stores/auth.js
-  - [ ] Admin app: same scaffold files (port 5174, sidebar layout)
-- [ ] **2.5** Auth pages
-  - [ ] User: LoginView.vue, RegisterView.vue, HomeView.vue, AppHeader.vue, authService.js, **KycView.vue**
-  - [ ] Admin: LoginView.vue, AdminSidebar.vue, AdminHeader.vue
+### Slice 2: Authentication [2 members] -- DONE
+- [x] **2.1** Create `backend/middleware/auth.py` — JWT verify, get_current_user, require_admin
+- [x] **2.2** Create `backend/services/auth_service.py` — register (kyc_status=NOT_SUBMITTED), login, refresh, bcrypt, **submit_kyc**, **get_kyc_status**, **review_kyc**
+- [x] **2.3** Create `backend/routers/auth.py` — POST register/login/refresh, GET me, **POST kyc/submit, GET kyc/status**
+- [x] **2.4** Frontend scaffolding (both apps)
+  - [x] User app: index.html, vite.config.js, tailwind.config.js, postcss.config.js, main.js, App.vue, main.css, router/index.js, services/api.js, services/authService.js, stores/auth.js
+  - [x] Admin app: same scaffold files (port 5174, sidebar layout)
+- [x] **2.5** Auth pages
+  - [x] User: LoginView.vue, RegisterView.vue, HomeView.vue, AppHeader.vue, authService.js, **KycView.vue**
+  - [x] Admin: LoginView.vue, AdminSidebar.vue, AdminHeader.vue
+
+Người hoàn thành: (team member names), người check: (reviewer)
 
 ---
 
 ### Slice 3: Wallet System [2 members]
-- [ ] **3.1** Create `backend/services/wallet_service.py` — top_up, deduct, credit, with FOR UPDATE locking. WalletTransaction links via `policy_id`/`claim_id` FKs
-- [ ] **3.2** Create `backend/routers/wallet.py` — GET balance, POST topup (**KYC VERIFIED required**), GET transactions
-- [ ] **3.3** Wallet frontend — walletService.js, stores/wallet.js, WalletView.vue, BalanceCard.vue, TransactionList.vue
+- [x] **3.1** Create `backend/services/wallet_service.py` — top_up, deduct, credit, with FOR UPDATE locking. WalletTransaction links via `policy_id`/`claim_id` FKs
+- [x] **3.2** Create `backend/routers/wallet.py` — GET balance, POST topup (**KYC VERIFIED required**), GET transactions
+- [x] **3.3** Wallet frontend — walletService.js, stores/wallet.js, WalletView.vue, BalanceCard.vue, TransactionList.vue  
+
+---
+
+### Data Preparation: External Training Data [1 member]
+- [ ] **Data.1** Create `backend/utils/crawl_data.py` — utility for fetching and preparing external ML training data
+  - [ ] `DataCrawler` class with methods: `create_training_data_dir()`, `save_json_data()`, `save_csv_data()`, `load_json_data()`, `load_csv_data()`
+  - [ ] `fetch_flight_delay_data()` — fetch/generate flight delay training records with format `{flight_id, distance, delay_occurred}`
+  - [ ] `fetch_weather_data()` — fetch/generate weather event training records with format `{date, region, temperature, humidity, wind_speed, event_occurred}`
+  - [ ] Can run standalone: `python -m utils.crawl_data`
+  - [ ] Creates `backend/ml_data/` directory and saves training files (JSON/CSV formats)
+
+---
+
+### Slice ML: Risk ML Models [1-2 members]
+- [ ] **ML.1** Create `backend/services/ml_models.py` — Base class + 2 classification models
+  - [ ] `BaseRiskModel` abstract class with fit(), predict_proba(), save(), load() methods
+  - [ ] `FlightDelayModel` — binary classification model (LogisticRegression/RandomForest) → P(flight_delay) ∈ [0.0, 1.0]
+  - [ ] `WeatherModel` — binary classification model (LogisticRegression/RandomForest) → P(weather_event) ∈ [0.0, 1.0]
+- [ ] **ML.2** Create `backend/seed/train_models.py` — standalone training script
+  - [ ] Load training data from **external sources** (CSV/JSON files in `backend/ml_data/`)
+  - [ ] Train 2 binary classification models (simple train/test, no optimization needed)
+  - [ ] Models output probability via `predict_proba()`: returns P(event=1) as value 0.0-1.0
+  - [ ] Save models to `backend/ml_models/{product}.joblib` (joblib format)
+  - [ ] Can run standalone: `python -m seed.train_models`
+  - [ ] Add scikit-learn, pandas, numpy, joblib to `backend/requirements.txt`
+- [ ] **ML.3** Refactor `backend/services/risk_engine.py`
+  - [ ] Load models at startup
+  - [ ] `calculate_premium(product_id, params)` calls `model.predict_proba(params)` → returns probability (0.0-1.0)
+  - [ ] Convert probability to risk multiplier: `risk_multiplier = 0.5 + (probability × 1.5)` (range: 0.5-2.0)
+  - [ ] Premium = base_price × risk_multiplier
+  - [ ] Return in response: event_probability (%), risk_multiplier, final_premium for user display
+  - [ ] Fallback to simple formula if model unavailable
+- [ ] **ML.4** Add ML endpoints to `backend/routers/admin.py`
+  - [ ] `GET /admin/ml/model-stats` — model last_updated, model file exists
+  - [ ] `POST /admin/ml/retrain` — trigger retraining from external data files
+
+**Acceptance Criteria:**
+- `python -m seed.train_models` trains 2 binary classification models from external data files
+- Models save to `backend/ml_models/flight_delay.joblib` & `backend/ml_models/weather.joblib`
+- `risk_engine.calculate_premium()` loads models → calls `predict_proba()` → returns probability
+- Premium breakdown shows: event_probability (%), risk_multiplier (0.5-2.0), final_premium
+- Fallback formula works if model load fails
+- Admin can check model status & trigger retrain via API
 
 ---
 
@@ -75,10 +120,15 @@ Vấn đề cần lưu ý:
 ---
 
 ### Slice 5: Policy Purchase [2 members]
-- [ ] **5.1** Create `backend/services/risk_engine.py` — premium formula, season/location factors, risk score
-- [ ] **5.2** Create `backend/services/policy_service.py` — **KYC VERIFIED check before purchase**; atomic purchase, cancel with refund, expire
+- [ ] **5.1** ~~Create risk_engine.py~~ (moved to Slice ML — now uses classification models)
+- [ ] **5.2** Create `backend/services/policy_service.py` — **KYC VERIFIED check before purchase**; atomic purchase (calc ML premium → check wallet → deduct → create policy); cancel with refund; expire
+  - Uses `risk_engine.calculate_premium()` which now calls ML classification models
 - [ ] **5.3** Create `backend/routers/policies.py` — calculate-premium, purchase, list, cancel
+  - Response includes: event_probability (%), risk_multiplier, final_premium in breakdown
 - [ ] **5.4** Purchase UI — PremiumCalculator.vue, MyPoliciesView.vue, DashboardView.vue
+  - Display ML probability (%) + risk multiplier + final premium in calculator
+
+**Verify:** Login (KYC verified user) → top up 5000 → calculate Flight Delay premium (shows "X% chance of delay" + multiplier) → purchase → wallet reduced → My Policies shows ACTIVE with ML-calculated premium
 
 ---
 
@@ -101,7 +151,8 @@ Vấn đề cần lưu ý:
 - [ ] **KYC flow: user submits → admin approves/rejects → status enforced on transactions**
 - [ ] Wallet top-up, balance, transactions work **(top-up blocked without KYC)**
 - [ ] 5 products visible in catalog with risk scores
-- [ ] Policy purchase and cancel flow complete **(purchase blocked without KYC)**
+- [ ] **ML binary classification models trained** from external data; displays event probability %
+- [ ] Policy purchase and cancel flow complete **(purchase blocked without KYC)**; shows ML probability + multiplier + premium
 - [ ] Manual claim -> admin review -> payout works
 - [ ] Notifications with unread count
 - [ ] Admin dashboard shows real metrics **+ KYC review queue**

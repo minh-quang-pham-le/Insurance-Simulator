@@ -6,6 +6,7 @@ import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import KycView from '../views/KycView.vue'
+import WalletView from '../views/WalletView.vue'
 
 const routes = [
   { path: '/', component: HomeView },
@@ -19,6 +20,11 @@ const routes = [
   {
     path: '/kyc',
     component: KycView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/wallet',
+    component: WalletView,
     meta: { requiresAuth: true }
   },
 ]

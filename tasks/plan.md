@@ -21,7 +21,10 @@ Layer 3: Alembic migration + Pydantic schemas (10 files)
     |
 Layer 4: middleware/auth.py (JWT) + seed data
     |
-Layer 5: Services (auth, wallet, insurance, policy, claims, risk, simulation, chatbot, notifications, trigger_monitor)
+Layer 5a: ML Models Training (train_models.py) + ml_models.py
+    |        (builds on RiskData from Layer 3)
+    |
+Layer 5b: Services (auth, wallet, insurance, **risk_engine w/ ML**, policy, claims, ...)
     |
 Layer 6: Routers (auth, wallet, insurance, policies, claims, simulation, chatbot, notifications, admin)
     |
@@ -30,7 +33,7 @@ Layer 7: Frontend scaffolding (main.js, App.vue, router, vite/tailwind config)
 Layer 8: Frontend services -> stores -> views -> components
 ```
 
-**Cross-cutting:** Wallet <- Policy Purchase <- Claims <- Trigger Monitor (chain). Chatbot <- Products + RiskData. Simulation <- Products + trigger_conditions.
+**Cross-cutting:** Wallet <- Policy Purchase <- Claims <- Trigger Monitor (chain). Chatbot <- Products + RiskData. Simulation <- Products + trigger_conditions. **ML Models <- RiskData + RiskEngine <- Policy Purchase**.
 
 ---
 
@@ -78,7 +81,18 @@ Everything else depends on this slice. Must be completed before other slices can
 **Verify:** Register -> attempt top-up (blocked: KYC not verified) -> submit KYC -> admin approves -> top up 500 -> top up 300 -> balance shows 800 -> 2 transactions in history.
 
 ---
+### Slice ML: Risk ML Models [1-2 members]
 
+| Task | Files | Acceptance Criteria |
+|------|-------|-------------------|
+| **ML.1** ML model classes | `backend/services/ml_models.py` | Base class `BaseRiskModel` (fit, predict_proba, save, load); 2 binary classification subclasses: `FlightDelayModel`, `WeatherModel`. Models output probability 0.0-1.0 via `predict_proba()` |
+| **ML.2** Model training pipeline | `backend/seed/train_models.py` | Load training data from **external sources** (CSV/JSON files in `backend/ml_data/`) → train 2 binary classification models → save to `backend/ml_models/{product}.joblib`. Standalone script: `python -m seed.train_models`. Add dependencies (scikit-learn, pandas, numpy, joblib) to `requirements.txt` |
+| **ML.3** Risk engine refactor | Modify `backend/services/risk_engine.py` | Load models at startup; `calculate_premium(product_id, params)` calls `model.predict_proba(params)` → returns probability [0.0-1.0]; convert to risk_multiplier = 0.5 + (prob × 1.5) [0.5-2.0]; return: probability (%), risk_multiplier, final_premium for user display |
+| **ML.4** Admin ML endpoints | Add to `backend/routers/admin.py` | `GET /admin/ml/model-stats` → model last_updated, exists status; `POST /admin/ml/retrain` → retrain from external data files |
+
+**Verify:** `python -m seed.train_models` trains 2 classification models. Models saved to `backend/ml_models/`. `calculate_premium()` returns probability % + risk multiplier. Admin checks `/admin/ml/model-stats`. Fallback works if model load fails.
+
+---
 ### Slice 4: Insurance Product Catalog [2-3 members]
 
 | Task | Files | Acceptance Criteria |
@@ -94,12 +108,12 @@ Everything else depends on this slice. Must be completed before other slices can
 
 | Task | Files | Acceptance Criteria |
 |------|-------|-------------------|
-| **5.1** Risk engine (basic) | `backend/services/risk_engine.py` | Premium formula from SPEC 4.4; season_factor, location_factor; risk_score 1-10 |
-| **5.2** Policy service | `backend/services/policy_service.py` | **Verify `kyc_status = VERIFIED` before purchase (403 if not)**; atomic purchase (calc premium -> check wallet -> deduct -> create policy); cancel with refund; expire_policies background |
-| **5.3** Policy router | `backend/routers/policies.py` + uncomment in `app.py` | POST `/calculate-premium`, `/purchase`; GET `/`, `/{id}`; POST `/{id}/cancel` |
-| **5.4** Purchase UI | `PremiumCalculator.vue`, `MyPoliciesView.vue`, `DashboardView.vue` | Fill params -> calculate -> see breakdown -> purchase -> wallet deducted -> policy in My Policies |
+| **5.1** ~~Risk engine~~ | (moved to Slice ML) | — |
+| **5.2** Policy service | `backend/services/policy_service.py` | **Verify `kyc_status = VERIFIED` before purchase (403 if not)**; atomic purchase (call `risk_engine.calculate_premium()` with **ML classification models** → get event_probability → calculate premium) → check wallet → deduct → create policy; cancel with refund; expire_policies background |
+| **5.3** Policy router | `backend/routers/policies.py` + uncomment in `app.py` | POST `/calculate-premium` (response incl. event_probability %, risk_multiplier), `/purchase`; GET `/`, `/{id}`; POST `/{id}/cancel` |
+| **5.4** Purchase UI | `PremiumCalculator.vue`, `MyPoliciesView.vue`, `DashboardView.vue` | Fill params → calculate → display: "X% chance event occurs" + risk_multiplier + premium → purchase → wallet deducted → policy in My Policies |
 
-**Verify:** Login (KYC verified user) -> top up 5000 -> calculate Flight Delay premium -> purchase -> wallet reduced -> My Policies shows ACTIVE -> cancel -> wallet refunded. **Also verify:** unverified user cannot purchase (403).
+**Verify:** Login (KYC verified) → top up 5000 → calculate Flight Delay (shows "15% chance delay occurs" + multiplier) → purchase → wallet reduced. **Also verify:** unverified user cannot purchase (403).
 
 ---
 
@@ -128,10 +142,11 @@ Everything else depends on this slice. Must be completed before other slices can
 - [ ] **KYC flow: user submits → admin approves/rejects → status enforced on transactions**
 - [ ] Wallet ops work **(top-up blocked without KYC)**
 - [ ] 5 products in catalog with risk scores
-- [ ] Policy purchase + cancel flow **(purchase blocked without KYC)**
+- [ ] **ML binary classification models trained** from external data; returns event probability %
+- [ ] Policy purchase + cancel flow **(purchase blocked without KYC)** **showing ML probability + risk multiplier**
 - [ ] Manual claim -> admin review -> payout
 - [ ] Notifications with unread count
-- [ ] Admin dashboard with metrics **+ KYC review queue**
+- [ ] Admin dashboard with metrics **+ KYC review queue + ML model stats**
 - [ ] Swagger docs complete at /docs
 
 ---
@@ -235,12 +250,13 @@ Everything else depends on this slice. Must be completed before other slices can
 | 1 — Database Foundation | 2 | Nothing (BLOCKING) |
 | 2 — Authentication | 2 | Slice 1 must finish first; then backend + frontend can split |
 | 3 — Wallet | 2 | After Slice 2 (needs auth) |
-| 4 — Insurance Catalog | 2-3 | After Slice 1 (backend) / After Slice 2 (frontend) |
-| 5 — Policy Purchase | 2 | After Slices 3 + 4 |
+| **ML — Risk ML Models** | **1-2** | **After Slice 1 (needs models); parallel with Slice 4** |
+| 4 — Insurance Catalog | 2-3 | After Slice 1 (backend) / After Slice 2 (frontend); **parallel with Slice ML** |
+| 5 — Policy Purchase | 2 | After Slices 3 + **ML** (needs ML models for premium calc) |
 | 6 — Claims + Notifications | 2 | After Slice 5 |
-| 7 — Admin Dashboard | 1-2 | After Slice 2 (auth); independent of Slices 3-6 |
+| 7 — Admin Dashboard | 1-2 | After Slice 2 (auth); independent of Slices 3-6; **needs ML endpoints for 7.2** |
 | 8 — AI Chatbot | 1-2 | After Slice 4 (needs products) |
-| 9 — Risk + Simulation | 2-3 | After Slice 4 (needs products) |
+| 9 — Risk + Simulation | 2-3 | After Slices 4 + ML (simulation uses ML risk scores) |
 | 10 — External APIs | 1-2 | After Slice 6 (needs claims engine) |
 | 11 — UI Polish | 1-2 | After Phase 1 complete |
 | 12 — Hardening | 2 | After Phase 2 complete |
@@ -255,7 +271,12 @@ Once Slice 1 is done (models + migration), up to 4 parallel workstreams open:
 - **Stream C:** Frontend-user scaffolding (2.4) — no backend dependency
 - **Stream D:** Frontend-admin scaffolding (2.4) — no backend dependency
 
-After auth is done, all streams advance independently on their respective slices.
+After Slice 2 auth is done, parallel streams:
+- **Stream E:** Wallet (Slice 3)
+- **Stream F:** ML Models (Slice ML) — trains from external data files
+- **Stream G:** Insurance Catalog (Slice 4)
+
+Slice 5 starts after **Slice 3 + Slice ML complete**.
 
 ---
 
@@ -279,21 +300,23 @@ These files have the highest dependency fan-out — errors here block everything
 - `backend/models/enums.py` — every model and schema imports from here (8 enums including KycStatus)
 - `backend/middleware/auth.py` — every protected endpoint depends on this; KYC enforcement utility lives here
 - `backend/services/auth_service.py` — registration + KYC flow; KYC status gates wallet and policy services
+- **`backend/services/ml_models.py`** — **risk_engine depends on this; binary classification models predict P(event)**
+- **`backend/seed/train_models.py`** — **must run successfully before Slice 5 (Policy Purchase); trains on external data**
 - `backend/services/wallet_service.py` — purchases, claims, and refunds all go through wallet; enforces KYC gate
-- `backend/services/policy_service.py` — most complex transaction (KYC check + premium + wallet + policy + notification)
+- `backend/services/policy_service.py` — most complex transaction (**uses ML probability for premium calc** + KYC check + wallet + policy + notification)
 - `frontend-user/src/services/api.js` — every frontend API call uses this Axios instance
 
 ---
 
 ## File Manifest
 
-### Backend (37+ files to create)
+### Backend (40+ files to create)
 
 **Models (11):** `enums.py` (8 enums incl. KycStatus), `user.py` (+ KYC fields), `wallet.py` (WalletTransaction uses policy_id/claim_id FKs), `insurance_product.py`, `policy.py`, `claim.py`, `risk_data.py`, `notification.py`, `chat_session.py`, `simulation_session.py`, `api_monitor_log.py`
 
 **Schemas (10):** `auth.py`, `user.py`, `wallet.py`, `insurance.py`, `policy.py`, `claim.py`, `simulation.py`, `chat.py`, `notification.py`, `admin.py`
 
-**Services (10):** `auth_service.py`, `wallet_service.py`, `insurance_service.py`, `policy_service.py`, `claims_engine.py`, `risk_engine.py`, `simulation_engine.py`, `chatbot_service.py`, `trigger_monitor.py`, `notification_service.py`
+**Services (11):** `auth_service.py`, `wallet_service.py`, `insurance_service.py`, **`ml_models.py`** (2 binary classification model classes: FlightDelayModel, WeatherModel), **`risk_engine.py`** (refactored to use ML predict_proba), `policy_service.py`, `claims_engine.py`, `simulation_engine.py`, `chatbot_service.py`, `trigger_monitor.py`, `notification_service.py`
 
 **Routers (9):** `auth.py`, `wallet.py`, `insurance.py`, `policies.py`, `claims.py`, `simulation.py`, `chatbot.py`, `notifications.py`, `admin.py`
 
@@ -301,7 +324,11 @@ These files have the highest dependency fan-out — errors here block everything
 
 **Utils (2):** `helpers.py`, `external_apis.py`
 
-**Seed (3):** `seed_data.py`, `products.json`, `risk_data.json`
+**ML (2):** **`ml_models.py`** (classes), **`seed/train_models.py`** (training script from external data)
+
+**Seed (3):** `seed_data.py`, `products.json`, external data files for ML training (CSV/JSON in `ml_data/`)
+
+**ML Models Directory:** `backend/ml_models/` (store `.joblib` files: `flight_delay.joblib`, `weather.joblib`)
 
 **Tests (6):** `conftest.py`, `test_auth.py`, `test_wallet.py`, `test_insurance.py`, `test_policies.py`, `test_claims.py`
 
