@@ -28,6 +28,7 @@ apscheduler==3.10.4
 google-generativeai==0.8.3
 joblib
 scikit-learn
+pandas
 
 # Risk Engine
 numpy>=1.26.4
