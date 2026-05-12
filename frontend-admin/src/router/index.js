@@ -12,7 +12,22 @@ const routes = [
     component: DashboardView,
     meta: { requiresAuth: true }
   },
-]
+  {
+  path: '/products',
+  name: 'admin-products',
+  component: () => import('../views/ProductsView.vue')
+  },
+  {
+  path: '/products/new',
+  name: 'admin-product-new',
+  component: () => import('../views/ProductFormView.vue')
+  },
+  {
+  path: '/products/edit/:id',
+  name: 'admin-product-edit',
+  component: () => import('../views/ProductFormView.vue')
+  },
+  ]
 
 const router = createRouter({
   history: createWebHistory(),

@@ -27,7 +27,29 @@ const routes = [
     component: WalletView,
     meta: { requiresAuth: true }
   },
-]
+  {
+    path: '/insurance',
+    name: 'insurance-list',
+    component: () => import('../views/InsuranceListView.vue')
+  },
+  {
+    path: '/insurance/:id',
+    name: 'insurance-detail',
+    component: () => import('../views/InsuranceDetailView.vue')
+  },
+  {
+    path: '/dashboard',
+    name: 'dashboard',
+    component: () => import('../views/DashboardView.vue'),
+    meta: { requiresAuth: true } // Yêu cầu đăng nhập (Middleware phía Frontend)
+  },
+  {
+    path: '/my-policies',
+    name: 'my-policies',
+    component: () => import('../views/MyPoliciesView.vue'),
+    meta: { requiresAuth: true }
+  },
+  ]
 
 const router = createRouter({
   history: createWebHistory(),
