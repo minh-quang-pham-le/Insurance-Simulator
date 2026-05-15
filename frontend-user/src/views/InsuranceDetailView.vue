@@ -45,7 +45,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useInsuranceStore } from '../stores/insurance'
 import RiskGauge from '../components/insurance/RiskGauge.vue'

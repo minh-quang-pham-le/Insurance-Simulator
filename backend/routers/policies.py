@@ -23,7 +23,6 @@ from schemas.policy import (
 from services import policy_service
 
 router = APIRouter(
-    prefix="/policies",
     tags=["Policies"]
 )
 

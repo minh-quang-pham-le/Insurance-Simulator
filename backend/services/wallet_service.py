@@ -34,20 +34,12 @@ class WalletService:
         Raises:
             ValueError: If user/wallet not found
         """
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise ValueError("User not found")
-
         wallet = db.query(Wallet).filter(Wallet.user_id == user_id).first()
         if not wallet:
             raise ValueError("Wallet not found")
 
-        logger.info(f"Balance retrieved for user {user.email}: {wallet.balance} {wallet.currency}")
-        return {
-            "user_id": str(user_id),
-            "balance": float(wallet.balance),
-            "currency": wallet.currency,
-        }
+        logger.info(f"Balance retrieved for user {user_id}: {wallet.balance} {wallet.currency}")
+        return wallet
 
     @staticmethod
     async def top_up(
@@ -110,7 +102,7 @@ class WalletService:
         # Create transaction record
         transaction = WalletTransaction(
             wallet_id=wallet.id,
-            transaction_type=TransactionType.TOP_UP,
+            type=TransactionType.TOP_UP,
             amount=amount,
             balance_after=wallet.balance,
             policy_id=None,
@@ -129,12 +121,11 @@ class WalletService:
         return {
             "user_id": str(user_id),
             "transaction_id": str(transaction.id),
-            "transaction_type": transaction.transaction_type,
+            "transaction_type": transaction.type,
             "amount": float(amount),
             "balance_before": float(old_balance),
             "balance_after": float(wallet.balance),
             "currency": wallet.currency,
-            "timestamp": transaction.created_at.isoformat(),
         }
 
     @staticmethod
@@ -201,16 +192,16 @@ class WalletService:
 
         # Determine transaction type
         if policy_id:
-            transaction_type = TransactionType.PURCHASE
+            tx_type = TransactionType.PREMIUM_PAYMENT
         elif claim_id:
-            transaction_type = TransactionType.CLAIM_PAYOUT
+            tx_type = TransactionType.PAYOUT
         else:
-            transaction_type = TransactionType.DEDUCT
+            tx_type = TransactionType.PREMIUM_PAYMENT
 
         # Create transaction record
         transaction = WalletTransaction(
             wallet_id=wallet.id,
-            transaction_type=transaction_type,
+            type=tx_type,
             amount=amount,
             balance_after=wallet.balance,
             policy_id=policy_id,
@@ -218,8 +209,7 @@ class WalletService:
             description=description or f"Deduct {amount}",
         )
         db.add(transaction)
-        db.commit()
-        db.refresh(wallet)
+        db.flush()
 
         logger.info(
             f"Deduction successful for user {user_id}: "
@@ -229,12 +219,11 @@ class WalletService:
         return {
             "user_id": str(user_id),
             "transaction_id": str(transaction.id),
-            "transaction_type": transaction.transaction_type,
+            "transaction_type": transaction.type,
             "amount": float(amount),
             "balance_before": float(old_balance),
             "balance_after": float(wallet.balance),
             "currency": wallet.currency,
-            "timestamp": transaction.created_at.isoformat(),
         }
 
     @staticmethod
@@ -287,12 +276,12 @@ class WalletService:
         db.flush()
 
         # Determine transaction type
-        transaction_type = TransactionType.CLAIM_PAYOUT if claim_id else TransactionType.CREDIT
+        tx_type = TransactionType.PAYOUT if claim_id else TransactionType.REFUND
 
         # Create transaction record
         transaction = WalletTransaction(
             wallet_id=wallet.id,
-            transaction_type=transaction_type,
+            type=tx_type,
             amount=amount,
             balance_after=wallet.balance,
             policy_id=None,
@@ -300,8 +289,7 @@ class WalletService:
             description=description or f"Credit {amount}",
         )
         db.add(transaction)
-        db.commit()
-        db.refresh(wallet)
+        db.flush()
 
         logger.info(
             f"Credit successful for user {user_id}: "
@@ -311,12 +299,11 @@ class WalletService:
         return {
             "user_id": str(user_id),
             "transaction_id": str(transaction.id),
-            "transaction_type": transaction.transaction_type,
+            "transaction_type": transaction.type,
             "amount": float(amount),
             "balance_before": float(old_balance),
             "balance_after": float(wallet.balance),
             "currency": wallet.currency,
-            "timestamp": transaction.created_at.isoformat(),
         }
 
     @staticmethod
@@ -365,25 +352,10 @@ class WalletService:
         )
 
         return {
-            "user_id": str(user_id),
-            "transactions": [
-                {
-                    "id": str(t.id),
-                    "type": t.transaction_type,
-                    "amount": float(t.amount),
-                    "balance_after": float(t.balance_after),
-                    "policy_id": str(t.policy_id) if t.policy_id else None,
-                    "claim_id": str(t.claim_id) if t.claim_id else None,
-                    "description": t.description,
-                    "created_at": t.created_at.isoformat(),
-                }
-                for t in transactions
-            ],
-            "pagination": {
-                "skip": skip,
-                "limit": limit,
-                "total": total,
-            },
+            "transactions": transactions,
+            "total": total,
+            "page": (skip // limit) + 1,
+            "page_size": limit,
         }
 
 

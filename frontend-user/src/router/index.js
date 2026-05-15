@@ -30,18 +30,14 @@ const routes = [
   {
     path: '/insurance',
     name: 'insurance-list',
-    component: () => import('../views/InsuranceListView.vue')
+    component: () => import('../views/InsuranceListView.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/insurance/:id',
     name: 'insurance-detail',
-    component: () => import('../views/InsuranceDetailView.vue')
-  },
-  {
-    path: '/dashboard',
-    name: 'dashboard',
-    component: () => import('../views/DashboardView.vue'),
-    meta: { requiresAuth: true } // Yêu cầu đăng nhập (Middleware phía Frontend)
+    component: () => import('../views/InsuranceDetailView.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/my-policies',

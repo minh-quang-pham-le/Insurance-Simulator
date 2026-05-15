@@ -84,7 +84,8 @@ async def top_up(
             amount=Decimal(str(req.amount)),
             db=db,
         )
-        return result
+        # Return updated wallet for WalletResponse schema
+        return wallet_service.get_balance(user.id, db)
 
     except ValueError as e:
         error_msg = str(e)

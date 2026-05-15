@@ -20,7 +20,7 @@ from schemas.insurance import (
 from services import insurance_service
 
 router = APIRouter(
-    prefix="/insurance/products",
+    prefix="/products",
     tags=["Insurance Catalog"]
 )
 
