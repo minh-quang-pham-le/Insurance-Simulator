@@ -68,6 +68,14 @@ const adminService = {
   },
 
   /**
+   * Lấy risk analytics data
+   */
+  async getRiskAnalytics() {
+    const { data } = await api.get('/admin/risk-analytics')
+    return data
+  },
+
+  /**
    * Lấy ML model stats
    */
   async getMlStats() {

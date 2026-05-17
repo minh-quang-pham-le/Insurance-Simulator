@@ -33,8 +33,37 @@ class KycUserResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class CategoryRiskStats(BaseModel):
+    category: str
+    total_events: int = 0
+    avg_severity: Optional[float] = None
+    event_probability: float = 0.0
+    total_policies: int = 0
+    total_premiums: float = 0.0
+    total_payouts: float = 0.0
+    loss_ratio: float = 0.0
+
+
+class MonthlyTrend(BaseModel):
+    month: str
+    premiums: float = 0.0
+    payouts: float = 0.0
+    policies_sold: int = 0
+    claims_count: int = 0
+
+
+class RegionRiskData(BaseModel):
+    region: str
+    event_count: int = 0
+    avg_severity: Optional[float] = None
+
+
 class RiskAnalyticsResponse(BaseModel):
     total_policies: int = 0
-    high_risk_count: int = 0
-    average_risk_multiplier: float = 1.0
+    total_premiums: float = 0.0
+    total_payouts: float = 0.0
+    overall_loss_ratio: float = 0.0
+    category_stats: List[CategoryRiskStats] = []
+    monthly_trends: List[MonthlyTrend] = []
+    region_stats: List[RegionRiskData] = []
     ml_models_status: str = "unavailable"

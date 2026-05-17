@@ -50,9 +50,13 @@
 
       <div class="border-t border-gray-700 my-4"></div>
 
-      <a href="#" class="nav-link opacity-50 cursor-not-allowed">
+      <router-link
+        to="/risk-analytics"
+        class="nav-link"
+        active-class="bg-indigo-600 text-white"
+      >
         <span class="mr-3">📈</span> Risk Analytics
-      </a>
+      </router-link>
       <a href="#" class="nav-link opacity-50 cursor-not-allowed">
         <span class="mr-3">🔌</span> API Monitor
       </a>

@@ -174,30 +174,30 @@ Người hoàn thành: (team member names), người check: (reviewer)
 
 ## Phase 2 — Intelligence
 
-### Slice 8: AI Chatbot [1-2 members]
+### Slice 8: AI Chatbot [1-2 members] -- DONE
 
-- [ ] **8.1** Create `backend/services/chatbot_service.py` — Gemini integration, context injection, fallback
-- [ ] **8.2** Create `backend/routers/chatbot.py` — POST message, GET sessions
-- [ ] **8.3** Chat widget frontend — ChatWidget.vue, ChatMessage.vue
+- [x] **8.1** Create `backend/services/chatbot_service.py` — Gemini 2.0 Flash integration, context injection (product catalog, user policies, risk data), session persistence, graceful fallback
+- [x] **8.2** Create `backend/routers/chatbot.py` — POST `/message`, GET `/sessions`, GET `/sessions/{id}`. Registered in app.py
+- [x] **8.3** Chat widget frontend — `chatService.js`, `ChatWidget.vue` (floating widget with toggle), `ChatMessage.vue`. Integrated into InsuranceDetailView with product context
 
 ---
 
-### Slice 9: Risk Engine + Simulation [2-3 members]
+### Slice 9: Risk Engine + Simulation [2-3 members] -- DONE
 
-- [ ] **9.1** Enhance `backend/services/risk_engine.py` — admin analytics, probability distributions
-- [ ] **9.2** Create `backend/services/simulation_engine.py` — slider config, trigger evaluation
-- [ ] **9.3** Create `backend/routers/simulation.py` — config, check-trigger, log endpoints
-- [ ] **9.4** Simulation UI — SimulationModal.vue, TriggerSlider.vue, ThresholdBar.vue, TriggerResult.vue
-- [ ] **9.5** Risk analytics admin — RiskAnalyticsView.vue, RevenueChart.vue, ClaimsChart.vue
+- [x] **9.1** Enhanced admin risk analytics — new `GET /admin/risk-analytics` endpoint with per-category stats, monthly trends, regional data, loss ratios. Updated `admin.py` schemas (CategoryRiskStats, MonthlyTrend, RegionRiskData)
+- [x] **9.2** Create `backend/services/simulation_engine.py` — slider config extraction from product trigger_conditions, trigger rule evaluation, payout multiplier calculation, session logging
+- [x] **9.3** Create `backend/routers/simulation.py` — GET `/products/{id}/config`, POST `/products/{id}/check-trigger`, POST `/products/{id}/log`. Registered in app.py
+- [x] **9.4** Simulation UI — `simulationService.js`, `SimulationModal.vue` (modal with auto-check), `TriggerSlider.vue` (green/yellow/red zones), `TriggerResult.vue` ("Activated!" popup with payout). Integrated into InsuranceDetailView
+- [x] **9.5** Risk analytics admin — `RiskAnalyticsView.vue` with ApexCharts (revenue vs payouts area chart, category donut, policies/claims bar chart, regional horizontal bar). Route added, sidebar link enabled. ApexCharts registered globally in admin main.js
 
 ---
 
 ### Phase 2 Checkpoint
 
-- [ ] Chatbot responds with product-aware advice
-- [ ] Simulation sliders work for all 5 products
-- [ ] Threshold crossing shows animated "Activated!" with payout
-- [ ] Admin risk analytics with interactive charts
+- [x] Chatbot responds with product-aware advice (Gemini 2.0 Flash with fallback)
+- [x] Simulation sliders work for all 5 products (parametric + manual info)
+- [x] Threshold crossing shows animated "Activated!" with payout
+- [x] Admin risk analytics with interactive charts (4 chart types)
 
 ---
 

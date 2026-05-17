@@ -37,7 +37,8 @@ app.include_router(claims.router, prefix="/api/v1/claims", tags=["Claims"])
 app.include_router(notifications.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(admin.router, prefix="/api/v1/admin", tags=["Admin"])
 
-# Future routers (Phase 2+):
-# from routers import simulation, chatbot
-# app.include_router(simulation.router, prefix="/api/v1/simulation", tags=["Simulation"])
-# app.include_router(chatbot.router, prefix="/api/v1/chat", tags=["Chatbot"])
+from routers import chatbot
+app.include_router(chatbot.router, prefix="/api/v1/chat", tags=["Chatbot"])
+
+from routers import simulation
+app.include_router(simulation.router, prefix="/api/v1/simulation", tags=["Simulation"])

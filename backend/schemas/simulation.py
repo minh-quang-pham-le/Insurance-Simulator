@@ -21,6 +21,7 @@ class TriggerRule(BaseModel):
     threshold: Optional[float] = None
     value: Optional[Any] = None
     payout_multiplier: float
+    description: Optional[str] = None
 
 
 class SimulationConfigResponse(BaseModel):
@@ -29,6 +30,8 @@ class SimulationConfigResponse(BaseModel):
     sliders: List[SliderConfig]
     trigger_rules: List[TriggerRule]
     base_payout: float
+    is_manual: bool = False
+    manual_info: Optional[Dict[str, Any]] = None
 
 
 class TriggerCheckRequest(BaseModel):

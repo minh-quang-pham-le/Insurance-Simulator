@@ -1,4 +1,4 @@
-"""Admin router — dashboard metrics, user/policy/claim management, KYC review, ML model stats."""
+"""Admin router — dashboard metrics, user/policy/claim management, KYC review, ML model stats, risk analytics."""
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -7,7 +7,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, extract, case, cast, Float
 
 from config.database import get_db
 from middleware.auth import get_current_user, require_admin
@@ -15,17 +15,23 @@ from models.user import User
 from models.wallet import Wallet
 from models.policy import Policy
 from models.claim import Claim
+from models.risk_data import RiskData
+from models.insurance_product import InsuranceProduct
 from models.enums import (
     KycStatus,
     PolicyStatus,
     ClaimStatus,
     UserRole,
+    ProductCategory,
 )
 from schemas.admin import (
     DashboardMetrics,
     KycReviewRequest,
     KycUserResponse,
     RiskAnalyticsResponse,
+    CategoryRiskStats,
+    MonthlyTrend,
+    RegionRiskData,
 )
 from schemas.user import UserResponse
 from schemas.policy import PolicyResponse, PolicyListResponse
@@ -286,6 +292,184 @@ async def review_kyc(
 
 
 # ---------------------------------------------------------------------------
+# Risk Analytics
+# ---------------------------------------------------------------------------
+
+@router.get("/risk-analytics")
+async def get_risk_analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """
+    Comprehensive risk analytics for admin dashboard.
+    Includes per-category stats, monthly trends, regional data, and loss ratios.
+    """
+    # Overall totals
+    total_premiums = float(
+        db.query(func.coalesce(func.sum(Policy.premium_paid), 0)).scalar()
+    )
+    total_payouts = float(
+        db.query(func.coalesce(func.sum(Claim.payout_amount), 0))
+        .filter(Claim.status == ClaimStatus.PAID)
+        .scalar()
+    )
+    total_policies = db.query(func.count(Policy.id)).scalar() or 0
+    overall_loss_ratio = total_payouts / total_premiums if total_premiums > 0 else 0.0
+
+    # Per-category statistics
+    category_stats = []
+    for cat in ProductCategory:
+        # Get product IDs for this category
+        product_ids = [
+            pid for (pid,) in db.query(InsuranceProduct.id).filter(
+                InsuranceProduct.category == cat
+            ).all()
+        ]
+
+        cat_policies = 0
+        cat_premiums = 0.0
+        cat_payouts = 0.0
+        if product_ids:
+            cat_policies = db.query(func.count(Policy.id)).filter(
+                Policy.product_id.in_(product_ids)
+            ).scalar() or 0
+            cat_premiums = float(
+                db.query(func.coalesce(func.sum(Policy.premium_paid), 0)).filter(
+                    Policy.product_id.in_(product_ids)
+                ).scalar()
+            )
+            # Payouts from claims on those policies
+            policy_ids = [
+                pid for (pid,) in db.query(Policy.id).filter(
+                    Policy.product_id.in_(product_ids)
+                ).all()
+            ]
+            if policy_ids:
+                cat_payouts = float(
+                    db.query(func.coalesce(func.sum(Claim.payout_amount), 0)).filter(
+                        Claim.policy_id.in_(policy_ids),
+                        Claim.status == ClaimStatus.PAID,
+                    ).scalar()
+                )
+
+        # Risk data events
+        event_count = db.query(func.count(RiskData.id)).filter(
+            RiskData.product_category == cat
+        ).scalar() or 0
+        avg_severity = db.query(func.avg(RiskData.event_severity)).filter(
+            RiskData.product_category == cat,
+            RiskData.event_severity.isnot(None),
+        ).scalar()
+
+        # Event share: proportion of risk events in this category vs total
+        total_risk_records = db.query(func.count(RiskData.id)).scalar() or 1
+        event_probability = event_count / total_risk_records if total_risk_records > 0 else 0.0  # category share
+
+        category_stats.append(CategoryRiskStats(
+            category=cat.value,
+            total_events=event_count,
+            avg_severity=round(float(avg_severity), 2) if avg_severity else None,
+            event_probability=round(event_probability, 4),
+            total_policies=cat_policies,
+            total_premiums=round(cat_premiums, 2),
+            total_payouts=round(cat_payouts, 2),
+            loss_ratio=round(cat_payouts / cat_premiums, 4) if cat_premiums > 0 else 0.0,
+        ))
+
+    # Monthly trends (last 12 months) — proper month arithmetic
+    monthly_trends = []
+    now = datetime.now(timezone.utc)
+    for i in range(11, -1, -1):
+        # Compute month_start by decrementing month/year properly
+        target_month = now.month - i
+        target_year = now.year
+        while target_month <= 0:
+            target_month += 12
+            target_year -= 1
+        month_start = datetime(target_year, target_month, 1, tzinfo=timezone.utc)
+        # month_end is the 1st of the next month (or now for current month)
+        if i > 0:
+            next_month = target_month + 1
+            next_year = target_year
+            if next_month > 12:
+                next_month = 1
+                next_year += 1
+            month_end = datetime(next_year, next_month, 1, tzinfo=timezone.utc)
+        else:
+            month_end = now
+
+        premiums = float(
+            db.query(func.coalesce(func.sum(Policy.premium_paid), 0)).filter(
+                Policy.created_at >= month_start,
+                Policy.created_at < month_end,
+            ).scalar()
+        )
+        payouts = float(
+            db.query(func.coalesce(func.sum(Claim.payout_amount), 0)).filter(
+                Claim.status == ClaimStatus.PAID,
+                Claim.created_at >= month_start,
+                Claim.created_at < month_end,
+            ).scalar()
+        )
+        policies_sold = db.query(func.count(Policy.id)).filter(
+            Policy.created_at >= month_start,
+            Policy.created_at < month_end,
+        ).scalar() or 0
+        claims_count = db.query(func.count(Claim.id)).filter(
+            Claim.created_at >= month_start,
+            Claim.created_at < month_end,
+        ).scalar() or 0
+
+        monthly_trends.append(MonthlyTrend(
+            month=month_start.strftime("%Y-%m"),
+            premiums=round(premiums, 2),
+            payouts=round(payouts, 2),
+            policies_sold=policies_sold,
+            claims_count=claims_count,
+        ))
+
+    # Regional risk data
+    region_rows = (
+        db.query(
+            RiskData.region,
+            func.count(RiskData.id).label("event_count"),
+            func.avg(RiskData.event_severity).label("avg_severity"),
+        )
+        .filter(RiskData.region.isnot(None))
+        .group_by(RiskData.region)
+        .order_by(func.count(RiskData.id).desc())
+        .limit(20)
+        .all()
+    )
+    region_stats = [
+        RegionRiskData(
+            region=r.region or "Unknown",
+            event_count=r.event_count,
+            avg_severity=round(float(r.avg_severity), 2) if r.avg_severity else None,
+        )
+        for r in region_rows
+    ]
+
+    # ML models status
+    try:
+        risk_engine = get_risk_engine()
+        ml_status = "available" if risk_engine.models_loaded else "partial"
+    except Exception:
+        ml_status = "unavailable"
+
+    return RiskAnalyticsResponse(
+        total_policies=total_policies,
+        total_premiums=round(total_premiums, 2),
+        total_payouts=round(total_payouts, 2),
+        overall_loss_ratio=round(overall_loss_ratio, 4),
+        category_stats=category_stats,
+        monthly_trends=monthly_trends,
+        region_stats=region_stats,
+        ml_models_status=ml_status,
+    )
+
+
+# ---------------------------------------------------------------------------
 # ML Model stats + retrain (already partially implemented, enhancing)
 # ---------------------------------------------------------------------------
 
@@ -389,5 +573,5 @@ async def retrain_ml_models(
         logger.error(f"Error during ML model retraining: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Retraining failed: {str(e)}",
+            detail="Model retraining failed. Check server logs for details.",
         )

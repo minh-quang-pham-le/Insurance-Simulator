@@ -54,6 +54,12 @@ const routes = [
     component: () => import('../views/KycReviewView.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/risk-analytics',
+    name: 'admin-risk-analytics',
+    component: () => import('../views/RiskAnalyticsView.vue'),
+    meta: { requiresAuth: true }
+  },
 ]
 
 const router = createRouter({
