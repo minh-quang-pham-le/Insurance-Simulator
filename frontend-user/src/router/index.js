@@ -45,7 +45,13 @@ const routes = [
     component: () => import('../views/MyPoliciesView.vue'),
     meta: { requiresAuth: true }
   },
-  ]
+  {
+    path: '/notifications',
+    name: 'notifications',
+    component: () => import('../views/NotificationsView.vue'),
+    meta: { requiresAuth: true }
+  },
+]
 
 const router = createRouter({
   history: createWebHistory(),

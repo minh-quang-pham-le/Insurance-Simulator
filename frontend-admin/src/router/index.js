@@ -13,21 +13,48 @@ const routes = [
     meta: { requiresAuth: true }
   },
   {
-  path: '/products',
-  name: 'admin-products',
-  component: () => import('../views/ProductsView.vue')
+    path: '/products',
+    name: 'admin-products',
+    component: () => import('../views/ProductsView.vue'),
+    meta: { requiresAuth: true }
   },
   {
-  path: '/products/new',
-  name: 'admin-product-new',
-  component: () => import('../views/ProductFormView.vue')
+    path: '/products/new',
+    name: 'admin-product-new',
+    component: () => import('../views/ProductFormView.vue'),
+    meta: { requiresAuth: true }
   },
   {
-  path: '/products/edit/:id',
-  name: 'admin-product-edit',
-  component: () => import('../views/ProductFormView.vue')
+    path: '/products/edit/:id',
+    name: 'admin-product-edit',
+    component: () => import('../views/ProductFormView.vue'),
+    meta: { requiresAuth: true }
   },
-  ]
+  {
+    path: '/users',
+    name: 'admin-users',
+    component: () => import('../views/UsersView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/admin-policies',
+    name: 'admin-policies',
+    component: () => import('../views/PoliciesView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/claims',
+    name: 'admin-claims',
+    component: () => import('../views/ClaimsView.vue'),
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/kyc-review',
+    name: 'admin-kyc-review',
+    component: () => import('../views/KycReviewView.vue'),
+    meta: { requiresAuth: true }
+  },
+]
 
 const router = createRouter({
   history: createWebHistory(),

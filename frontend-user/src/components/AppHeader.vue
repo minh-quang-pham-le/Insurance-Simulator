@@ -7,24 +7,15 @@
         </router-link>
         <nav class="hidden md:flex gap-6">
           <router-link to="/dashboard" class="hover:text-blue-100 transition">Dashboard</router-link>
-          <router-link to="/" class="hover:text-blue-100 transition">Insurance</router-link>
-          <router-link to="/" class="hover:text-blue-100 transition">Wallet</router-link>
-          <router-link to="/" class="hover:text-blue-100 transition">Policies</router-link>
+          <router-link to="/insurance" class="hover:text-blue-100 transition">Insurance</router-link>
+          <router-link to="/wallet" class="hover:text-blue-100 transition">Wallet</router-link>
+          <router-link to="/my-policies" class="hover:text-blue-100 transition">Policies</router-link>
         </nav>
       </div>
 
       <div class="flex items-center gap-4">
-        <!-- Notifications Bell (placeholder) -->
-        <button class="relative hover:text-blue-100 transition">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-            ></path>
-          </svg>
-        </button>
+        <!-- Notifications Bell -->
+        <NotificationBell />
 
         <!-- User Dropdown -->
         <div class="relative user-dropdown">
@@ -65,6 +56,13 @@
             >
               KYC Verification
             </router-link>
+            <router-link
+              to="/notifications"
+              class="block px-4 py-2 hover:bg-gray-100"
+              @click="showDropdown = false"
+            >
+              Notifications
+            </router-link>
             <button
               @click="handleLogout"
               class="w-full text-left px-4 py-2 hover:bg-gray-100 last:rounded-b-lg border-t"
@@ -82,11 +80,11 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import NotificationBell from './NotificationBell.vue'
 
 const authStore = useAuthStore()
 const router = useRouter()
 const showDropdown = ref(false)
-const dropdownRef = ref(null)
 
 function handleLogout() {
   authStore.logout()
