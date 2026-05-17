@@ -34,8 +34,8 @@ def _get_genai_model():
     try:
         import google.generativeai as genai
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        _genai_model = genai.GenerativeModel("gemini-2.0-flash")
-        logger.info("Gemini 2.0 Flash model initialized")
+        _genai_model = genai.GenerativeModel("gemini-2.5-flash")
+        logger.info("Gemini 2.5 Flash model initialized")
         return _genai_model
     except Exception as e:
         logger.error(f"Failed to initialize Gemini model: {e}")
@@ -249,7 +249,7 @@ async def _generate_response(
         # Create a model instance with system instruction (prevents prompt injection)
         import google.generativeai as genai
         scoped_model = genai.GenerativeModel(
-            "gemini-2.0-flash",
+            "gemini-2.5-flash",
             system_instruction=system_prompt,
         )
 
