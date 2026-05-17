@@ -7,15 +7,15 @@ from uuid import UUID
 
 
 class DashboardMetrics(BaseModel):
-    total_users: int
-    active_users: int
-    new_registrations_30d: int
-    total_active_policies: int
-    total_premiums_collected: Decimal
-    total_claims_paid: Decimal
-    loss_ratio: float
-    revenue: Decimal
-    pending_kyc_count: int
+    total_users: int = 0
+    active_users: int = 0
+    new_registrations_30d: int = 0
+    total_active_policies: int = 0
+    total_premiums_collected: float = 0.0
+    total_claims_paid: float = 0.0
+    loss_ratio: float = 0.0
+    revenue: float = 0.0
+    pending_kyc_count: int = 0
 
 
 class KycReviewRequest(BaseModel):
@@ -34,10 +34,7 @@ class KycUserResponse(BaseModel):
 
 
 class RiskAnalyticsResponse(BaseModel):
-    category: str
-    total_events: int
-    event_probability: float
-    avg_severity: Optional[float] = None
-    by_region: List[Dict[str, Any]]
-    by_season: List[Dict[str, Any]]
-    loss_ratio: float
+    total_policies: int = 0
+    high_risk_count: int = 0
+    average_risk_multiplier: float = 1.0
+    ml_models_status: str = "unavailable"

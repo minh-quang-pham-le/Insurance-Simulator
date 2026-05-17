@@ -4,9 +4,9 @@
   "description": "Insurance Simulator — Admin Dashboard",
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "npx vite dev",
+    "build": "npx vite build",
+    "preview": "npx vite preview",
     "lint": "eslint src --ext .vue,.js --fix"
   },
   "dependencies": {
