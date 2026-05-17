@@ -159,16 +159,16 @@ Người hoàn thành: (team member names), người check: (reviewer)
 
 ### Phase 1 Checkpoint
 
-- [ ] Full auth flow works on both apps
-- [ ] **KYC flow: user submits → admin approves/rejects → status enforced on transactions**
-- [ ] Wallet top-up, balance, transactions work **(top-up blocked without KYC)**
-- [ ] 5 products visible in catalog with risk scores
-- [ ] **ML binary classification models trained** from external data; displays event probability %
-- [ ] Policy purchase and cancel flow complete **(purchase blocked without KYC)**; shows ML probability + multiplier + premium
-- [ ] Manual claim -> admin review -> payout works
-- [ ] Notifications with unread count
-- [ ] Admin dashboard shows real metrics **+ KYC review queue**
-- [ ] Swagger docs at /docs are complete
+- [x] Full auth flow works on both apps
+- [x] **KYC flow: user submits → admin approves/rejects → status enforced on transactions**
+- [x] Wallet top-up, balance, transactions work **(top-up blocked without KYC)**
+- [x] 5 products visible in catalog with risk scores
+- [x] **ML binary classification models trained** from external data; displays event probability %
+- [x] Policy purchase and cancel flow complete **(purchase blocked without KYC)**; shows ML probability + multiplier + premium
+- [x] Manual claim -> admin review -> payout works
+- [x] Notifications with unread count
+- [x] Admin dashboard shows real metrics **+ KYC review queue**
+- [x] Swagger docs at /docs are complete
 
 ---
 
