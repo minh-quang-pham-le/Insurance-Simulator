@@ -7,7 +7,7 @@
       </span>
     </div>
 
-    <!-- Toggle for boolean fields -->
+    <!-- Toggle for boolean fields (Yes/No) -->
     <div v-if="slider.unit === 'toggle'" class="flex items-center gap-3">
       <button
         @click="$emit('update:modelValue', 0)"
@@ -22,6 +22,19 @@
           modelValue === 1 ? 'bg-red-100 text-red-700 ring-2 ring-red-500' : 'bg-gray-100 text-gray-500']"
       >
         Yes
+      </button>
+    </div>
+
+    <!-- Direction toggle (Above/Below for Crop Weather) -->
+    <div v-else-if="slider.unit === 'direction'" class="flex items-center gap-3">
+      <button
+        v-for="opt in (slider.options || [{value:0,label:'Above'},{value:1,label:'Below'}])"
+        :key="opt.value"
+        @click="$emit('update:modelValue', opt.value)"
+        :class="['px-3 py-1.5 rounded-lg text-sm font-medium transition',
+          modelValue === opt.value ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500' : 'bg-gray-100 text-gray-500']"
+      >
+        {{ opt.label }}
       </button>
     </div>
 
@@ -120,6 +133,7 @@ const valueColor = computed(() => {
   if (props.slider.unit === 'toggle') {
     return props.modelValue === 1 ? 'text-red-600' : 'text-green-600'
   }
+  if (props.slider.unit === 'direction') return 'text-blue-600'
   if (props.slider.threshold == null) return 'text-gray-700'
   if (valuePercent.value >= thresholdPercent.value) return 'text-red-600'
   if (valuePercent.value >= thresholdPercent.value * 0.8) return 'text-yellow-600'
@@ -129,6 +143,11 @@ const valueColor = computed(() => {
 const displayValue = computed(() => {
   if (props.slider.unit === 'toggle') {
     return props.modelValue === 1 ? 'YES' : 'NO'
+  }
+  if (props.slider.unit === 'direction') {
+    const opts = props.slider.options || []
+    const match = opts.find(o => o.value === props.modelValue)
+    return match ? match.label : (props.modelValue === 0 ? 'Above' : 'Below')
   }
   return Number.isInteger(props.modelValue) ? props.modelValue : props.modelValue.toFixed(1)
 })

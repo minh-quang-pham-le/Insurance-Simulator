@@ -29,12 +29,12 @@ SLIDER_DEFAULTS = {
         "unit": "mm",
     },
     "temp_celsius": {
-        "label": "Temperature (°C)",
+        "label": "Temperature (\u00b0C)",
         "min_value": 0,
         "max_value": 50,
         "step": 0.5,
         "default_value": 25,
-        "unit": "°C",
+        "unit": "\u00b0C",
     },
     "drought_days": {
         "label": "Drought Duration (days)",
@@ -52,14 +52,17 @@ SLIDER_DEFAULTS = {
         "default_value": 1,
         "unit": "level",
     },
-    "status": {
-        "label": "Flight Status",
-        "min_value": 0,
-        "max_value": 1,
-        "step": 1,
-        "default_value": 0,
-        "unit": "status",
-    },
+}
+
+# Friendly labels for fields
+FIELD_LABELS = {
+    "delay_minutes": "Flight Delay",
+    "rainfall_mm": "Rainfall",
+    "temp_celsius": "Temperature",
+    "drought_days": "Drought Duration",
+    "alert_severity": "Alert Severity",
+    "weather_metric": "Weather Metric",
+    "status": "Flight Status",
 }
 
 
@@ -87,14 +90,15 @@ def get_simulation_config(product: InsuranceProduct) -> Dict:
                 "requires": trigger_conditions.get("requires", []),
                 "review": trigger_conditions.get("review", "ADMIN"),
                 "description": (
-                    "This product uses manual claims. Submit evidence "
-                    "and a description for admin review."
+                    "This product uses manual claims. Submit a claim with "
+                    "a description and photo evidence for admin review."
                 ),
             },
         }
 
-    # Extract default parameter values from the product's parameters_schema
+    # Extract default parameter values and option lists from schema
     param_defaults = {}
+    param_options = {}
     for field in parameters_schema.get("fields", []):
         if "default" in field:
             param_defaults[field["name"]] = field["default"]
@@ -102,79 +106,85 @@ def get_simulation_config(product: InsuranceProduct) -> Dict:
             param_defaults[f"_min_{field['name']}"] = field["min"]
         if "max" in field:
             param_defaults[f"_max_{field['name']}"] = field["max"]
+        if "options" in field:
+            param_options[field["name"]] = field["options"]
 
     sliders = []
     trigger_rules = []
     seen_fields = set()
 
-    for rule in rules:
-        raw_field = rule.get("field", "")
-        operator = rule.get("operator", ">=")
-        threshold_param = rule.get("threshold_param")
-        fixed_value = rule.get("value")
-        payout_multiplier = rule.get("payout_multiplier", 1.0)
+    # Detect dynamic template fields like {weather_metric}
+    has_dynamic_fields = any("{" in rule.get("field", "") for rule in rules)
 
-        # Resolve dynamic field names like {weather_metric}
-        field_name = raw_field.strip("{}")
+    if has_dynamic_fields:
+        # Expand dynamic fields into concrete sliders for each option
+        sliders, trigger_rules = _expand_dynamic_rules(
+            rules, param_defaults, param_options, parameters_schema
+        )
+    else:
+        # Standard products: direct field mapping
+        for rule in rules:
+            raw_field = rule.get("field", "")
+            operator = rule.get("operator", ">=")
+            threshold_param = rule.get("threshold_param")
+            fixed_value = rule.get("value")
+            payout_multiplier = rule.get("payout_multiplier", 1.0)
 
-        # Determine threshold value
-        threshold = None
-        if threshold_param and threshold_param in param_defaults:
-            threshold = param_defaults[threshold_param]
-        elif fixed_value is not None:
-            threshold = fixed_value
+            field_name = raw_field.strip("{}")
 
-        # Build slider config (one slider per unique field)
-        if field_name not in seen_fields and field_name != "status":
-            seen_fields.add(field_name)
-            defaults = SLIDER_DEFAULTS.get(field_name, {})
+            # Determine threshold
+            threshold = None
+            if threshold_param and threshold_param in param_defaults:
+                threshold = param_defaults[threshold_param]
+            elif fixed_value is not None:
+                threshold = fixed_value
 
-            slider = {
-                "name": field_name,
-                "label": defaults.get("label", field_name.replace("_", " ").title()),
-                "min_value": defaults.get("min_value", 0),
-                "max_value": defaults.get("max_value", 100),
-                "step": defaults.get("step", 1),
-                "default_value": defaults.get("default_value", 0),
+            # Build slider (one per unique field, skip "status")
+            if field_name not in seen_fields and field_name != "status":
+                seen_fields.add(field_name)
+                defaults = SLIDER_DEFAULTS.get(field_name, {})
+
+                slider = {
+                    "name": field_name,
+                    "label": defaults.get("label", _label(field_name)),
+                    "min_value": defaults.get("min_value", 0),
+                    "max_value": defaults.get("max_value", 100),
+                    "step": defaults.get("step", 1),
+                    "default_value": defaults.get("default_value", 0),
+                    "threshold": threshold,
+                    "unit": defaults.get("unit", ""),
+                }
+
+                if threshold_param:
+                    schema_min = param_defaults.get(f"_min_{threshold_param}")
+                    schema_max = param_defaults.get(f"_max_{threshold_param}")
+                    if schema_min is not None:
+                        slider["min_value"] = schema_min
+                    if schema_max is not None:
+                        slider["max_value"] = schema_max
+
+                sliders.append(slider)
+
+            trigger_rules.append({
+                "field": field_name,
+                "operator": operator,
                 "threshold": threshold,
-                "unit": defaults.get("unit", ""),
-            }
+                "payout_multiplier": payout_multiplier,
+                "description": _describe_rule(field_name, operator, threshold, fixed_value, payout_multiplier),
+            })
 
-            # Override slider range from schema if available
-            if threshold_param:
-                schema_min = param_defaults.get(f"_min_{threshold_param}")
-                schema_max = param_defaults.get(f"_max_{threshold_param}")
-                if schema_min is not None:
-                    slider["min_value"] = schema_min
-                if schema_max is not None:
-                    slider["max_value"] = schema_max
-
-            sliders.append(slider)
-
-        # Build trigger rule description
-        rule_desc = {
-            "field": field_name,
-            "operator": operator,
-            "threshold": threshold,
-            "payout_multiplier": payout_multiplier,
-            "description": _describe_rule(field_name, operator, threshold, fixed_value, payout_multiplier),
-        }
-        if fixed_value is not None:
-            rule_desc["fixed_value"] = fixed_value
-        trigger_rules.append(rule_desc)
-
-    # Add special "status" slider for flight cancellation
-    if any(r.get("field") == "status" for r in rules):
-        sliders.append({
-            "name": "is_cancelled",
-            "label": "Flight Cancelled",
-            "min_value": 0,
-            "max_value": 1,
-            "step": 1,
-            "default_value": 0,
-            "threshold": 1,
-            "unit": "toggle",
-        })
+        # Add toggle for flight cancellation
+        if any(r.get("field") == "status" for r in rules):
+            sliders.append({
+                "name": "is_cancelled",
+                "label": "Flight Cancelled",
+                "min_value": 0,
+                "max_value": 1,
+                "step": 1,
+                "default_value": 0,
+                "threshold": 1,
+                "unit": "toggle",
+            })
 
     return {
         "product_id": str(product.id),
@@ -184,6 +194,104 @@ def get_simulation_config(product: InsuranceProduct) -> Dict:
         "base_payout": float(product.base_payout),
         "is_manual": False,
     }
+
+
+def _expand_dynamic_rules(
+    rules: List[Dict],
+    param_defaults: Dict,
+    param_options: Dict,
+    parameters_schema: Dict,
+) -> tuple:
+    """
+    Expand dynamic template rules (like Crop Weather) into concrete sliders.
+
+    Crop Weather uses {weather_metric} and {comparison} which are user-selectable.
+    We expand these into one slider per possible weather metric so users can
+    explore all scenarios.
+    """
+    sliders = []
+    trigger_rules = []
+
+    # Find the metric options (e.g., weather_metric -> rainfall_mm, temp_celsius, drought_days)
+    metric_options = param_options.get("weather_metric", [])
+    comparison_options = param_options.get("comparison", [])
+
+    if metric_options:
+        # Create a slider for each possible weather metric
+        for opt in metric_options:
+            metric_name = opt["value"]  # e.g. "rainfall_mm"
+            metric_label = opt["label"]  # e.g. "Excessive Rainfall (flood)"
+            defaults = SLIDER_DEFAULTS.get(metric_name, {})
+
+            threshold_default = param_defaults.get("threshold")
+
+            sliders.append({
+                "name": metric_name,
+                "label": defaults.get("label", metric_label),
+                "min_value": defaults.get("min_value", 0),
+                "max_value": defaults.get("max_value", 100),
+                "step": defaults.get("step", 1),
+                "default_value": defaults.get("default_value", 0),
+                "threshold": threshold_default,
+                "unit": defaults.get("unit", ""),
+            })
+
+        # Add threshold slider
+        sliders.append({
+            "name": "threshold",
+            "label": "Trigger Threshold",
+            "min_value": 0,
+            "max_value": 200,
+            "step": 1,
+            "default_value": param_defaults.get("threshold", 50),
+            "threshold": None,
+            "unit": "value",
+        })
+
+        # Add comparison direction toggle
+        sliders.append({
+            "name": "comparison",
+            "label": "Trigger When Value Is",
+            "min_value": 0,
+            "max_value": 1,
+            "step": 1,
+            "default_value": 0,
+            "threshold": None,
+            "unit": "direction",
+            "options": [
+                {"value": 0, "label": "Above threshold"},
+                {"value": 1, "label": "Below threshold"},
+            ],
+        })
+
+        trigger_rules.append({
+            "field": "weather_metric",
+            "operator": "dynamic",
+            "threshold": param_defaults.get("threshold"),
+            "payout_multiplier": 1.0,
+            "description": "Weather metric crosses your set threshold",
+        })
+    else:
+        # Fallback: generic slider
+        sliders.append({
+            "name": "value",
+            "label": "Metric Value",
+            "min_value": 0,
+            "max_value": 100,
+            "step": 1,
+            "default_value": 0,
+            "threshold": param_defaults.get("threshold", 50),
+            "unit": "",
+        })
+        trigger_rules.append({
+            "field": "value",
+            "operator": ">=",
+            "threshold": param_defaults.get("threshold", 50),
+            "payout_multiplier": 1.0,
+            "description": "Value reaches threshold",
+        })
+
+    return sliders, trigger_rules
 
 
 def check_trigger(
@@ -202,72 +310,128 @@ def check_trigger(
     triggered_rules = []
     max_multiplier = 0.0
 
-    for rule in rules:
-        raw_field = rule.get("field", "")
-        operator = rule.get("operator", ">=")
-        threshold_param = rule.get("threshold_param")
-        fixed_value = rule.get("value")
-        payout_multiplier = rule.get("payout_multiplier", 1.0)
+    # Detect if this product uses dynamic template fields
+    has_dynamic = any("{" in rule.get("field", "") for rule in rules)
 
-        field_name = raw_field.strip("{}")
+    if has_dynamic:
+        # Handle Crop Weather style: check each concrete metric against threshold
+        triggered_rules, max_multiplier = _check_dynamic_triggers(
+            rules, parameters, product
+        )
+    else:
+        for rule in rules:
+            raw_field = rule.get("field", "")
+            operator = rule.get("operator", ">=")
+            threshold_param = rule.get("threshold_param")
+            fixed_value = rule.get("value")
+            payout_multiplier = rule.get("payout_multiplier", 1.0)
 
-        # Handle flight cancellation special case
-        if field_name == "status" and operator == "==" and fixed_value == "CANCELLED":
-            is_cancelled = parameters.get("is_cancelled", 0)
-            if is_cancelled == 1 or is_cancelled is True:
+            field_name = raw_field.strip("{}")
+
+            # Handle flight cancellation
+            if field_name == "status" and operator == "==" and fixed_value == "CANCELLED":
+                is_cancelled = parameters.get("is_cancelled", 0)
+                if is_cancelled == 1 or is_cancelled is True:
+                    triggered_rules.append({
+                        "field": "status",
+                        "description": "Flight is cancelled",
+                        "payout_multiplier": payout_multiplier,
+                    })
+                    max_multiplier = max(max_multiplier, payout_multiplier)
+                continue
+
+            current_value = parameters.get(field_name)
+            if current_value is None:
+                continue
+
+            threshold = None
+            if threshold_param:
+                threshold = parameters.get(threshold_param)
+                if threshold is None:
+                    for f in (product.parameters_schema or {}).get("fields", []):
+                        if f["name"] == threshold_param and "default" in f:
+                            threshold = f["default"]
+                            break
+            elif fixed_value is not None:
+                threshold = fixed_value
+
+            if threshold is None:
+                continue
+
+            if _evaluate_condition(float(current_value), operator, float(threshold)):
                 triggered_rules.append({
-                    "field": "status",
-                    "description": "Flight Cancelled",
+                    "field": field_name,
+                    "value": current_value,
+                    "threshold": threshold,
+                    "operator": operator,
+                    "description": _describe_rule(field_name, operator, threshold, fixed_value, payout_multiplier),
                     "payout_multiplier": payout_multiplier,
                 })
                 max_multiplier = max(max_multiplier, payout_multiplier)
-            continue
-
-        # Get the current value from user parameters
-        current_value = parameters.get(field_name)
-        if current_value is None:
-            continue
-
-        # Get threshold
-        threshold = None
-        if threshold_param:
-            threshold = parameters.get(threshold_param)
-            if threshold is None:
-                # Use product defaults
-                for f in (product.parameters_schema or {}).get("fields", []):
-                    if f["name"] == threshold_param and "default" in f:
-                        threshold = f["default"]
-                        break
-        elif fixed_value is not None:
-            threshold = fixed_value
-
-        if threshold is None:
-            continue
-
-        # Evaluate condition
-        is_triggered = _evaluate_condition(float(current_value), operator, float(threshold))
-
-        if is_triggered:
-            triggered_rules.append({
-                "field": field_name,
-                "value": current_value,
-                "threshold": threshold,
-                "operator": operator,
-                "description": _describe_rule(field_name, operator, threshold, fixed_value, payout_multiplier),
-                "payout_multiplier": payout_multiplier,
-            })
-            max_multiplier = max(max_multiplier, payout_multiplier)
 
     is_triggered = len(triggered_rules) > 0
-    payout_multiplier = max_multiplier if is_triggered else 0.0
-    payout_amount = base_payout * payout_multiplier
+    final_multiplier = max_multiplier if is_triggered else 0.0
+    payout_amount = base_payout * final_multiplier
 
     return {
         "triggered": is_triggered,
         "triggered_rules": triggered_rules,
         "payout_amount": round(payout_amount, 2),
-        "payout_multiplier": payout_multiplier,
+        "payout_multiplier": final_multiplier,
     }
+
+
+def _check_dynamic_triggers(
+    rules: List[Dict],
+    parameters: Dict[str, Any],
+    product: InsuranceProduct,
+) -> tuple:
+    """Check dynamic template triggers (Crop Weather style)."""
+    triggered_rules = []
+    max_multiplier = 0.0
+
+    # The threshold can come from parameters or product defaults
+    threshold = parameters.get("threshold")
+    if threshold is None:
+        for f in (product.parameters_schema or {}).get("fields", []):
+            if f["name"] == "threshold" and "default" in f:
+                threshold = f["default"]
+                break
+
+    if threshold is None:
+        return triggered_rules, max_multiplier
+
+    # The comparison direction comes from the "comparison" parameter
+    # ABOVE = trigger when value > threshold (e.g., too much rain)
+    # BELOW = trigger when value < threshold (e.g., drought)
+    raw_comparison = parameters.get("comparison", "ABOVE")
+    # Handle numeric toggle: 0=ABOVE, 1=BELOW
+    if raw_comparison == 0 or raw_comparison == "0":
+        comparison = "ABOVE"
+    elif raw_comparison == 1 or raw_comparison == "1":
+        comparison = "BELOW"
+    else:
+        comparison = raw_comparison
+
+    weather_metrics = ["rainfall_mm", "temp_celsius", "drought_days"]
+    for metric in weather_metrics:
+        value = parameters.get(metric)
+        if value is None:
+            continue
+
+        if _evaluate_condition(float(value), comparison, float(threshold)):
+            direction = "exceeds" if comparison == "ABOVE" else "drops below"
+            triggered_rules.append({
+                "field": metric,
+                "value": value,
+                "threshold": threshold,
+                "operator": comparison,
+                "description": f"{_label(metric)} {direction} {threshold}",
+                "payout_multiplier": 1.0,
+            })
+            max_multiplier = max(max_multiplier, 1.0)
+
+    return triggered_rules, max_multiplier
 
 
 def log_session(
@@ -308,6 +472,11 @@ def _evaluate_condition(value: float, operator: str, threshold: float) -> bool:
     return fn(value, threshold)
 
 
+def _label(field_name: str) -> str:
+    """Get a friendly label for a field name."""
+    return FIELD_LABELS.get(field_name, field_name.replace("_", " ").title())
+
+
 def _describe_rule(
     field: str,
     operator: str,
@@ -316,7 +485,7 @@ def _describe_rule(
     multiplier: float,
 ) -> str:
     """Generate a human-readable description for a trigger rule."""
-    field_label = field.replace("_", " ").title()
+    field_label = _label(field)
     op_labels = {
         ">=": "reaches",
         ">": "exceeds",
