@@ -1,63 +1,79 @@
 <template>
-  <div class="topup-form">
-    <!-- KYC Status Check -->
-    <div v-if="!kycVerified" class="kyc-warning">
-      <p>⚠️ <strong>KYC Verification Required</strong></p>
-      <p>You must complete KYC verification before you can top up your wallet.</p>
-      <router-link to="/kyc" class="btn-link">Complete KYC Verification</router-link>
+  <div>
+    <!-- KYC warning -->
+    <div
+      v-if="!kycVerified"
+      class="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3"
+    >
+      <div>
+        <p class="font-bold text-amber-800 text-sm mb-0.5">⚠️ Cần xác minh KYC</p>
+        <p class="text-amber-700 text-sm">Hoàn thành xác minh danh tính để nạp tiền vào ví.</p>
+      </div>
+      <router-link
+        to="/kyc"
+        class="whitespace-nowrap bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2 rounded-xl text-sm transition-colors"
+      >
+        Xác minh ngay →
+      </router-link>
     </div>
 
-    <!-- Top-up Form -->
-    <div v-else class="form-group">
-      <label for="amount">Amount (SimCoin)</label>
-      <div class="input-row">
-        <input
-          id="amount"
-          v-model.number="amount"
-          type="number"
-          placeholder="Enter amount"
-          min="1"
-          max="100000"
-          :disabled="loading"
-        />
-        <button
-          @click="handleTopUp"
-          :disabled="!amount || amount <= 0 || loading"
-          class="btn-topup"
-        >
-          {{ loading ? 'Processing...' : 'Top Up' }}
-        </button>
+    <!-- Top-up form -->
+    <div v-else class="space-y-4">
+      <div>
+        <label class="block text-sm font-semibold text-slate-700 mb-1.5">Số lượng SimCoin</label>
+        <div class="flex gap-2">
+          <input
+            v-model.number="amount"
+            type="number"
+            placeholder="Nhập số lượng..."
+            min="1"
+            max="100000"
+            :disabled="loading"
+            class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none disabled:bg-slate-50"
+          />
+          <button
+            @click="handleTopUp"
+            :disabled="!amount || amount <= 0 || loading"
+            class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-all disabled:bg-slate-300 disabled:cursor-not-allowed"
+          >
+            {{ loading ? '···' : 'Nạp tiền' }}
+          </button>
+        </div>
       </div>
 
-      <div v-if="error" class="error-message">
+      <!-- Preset amounts -->
+      <div>
+        <p class="text-xs text-slate-400 mb-2">Nạp nhanh:</p>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="preset in presetAmounts"
+            :key="preset"
+            @click="setAmount(preset)"
+            :disabled="loading"
+            class="bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 border border-slate-200 text-slate-600 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
+          >
+            +{{ preset.toLocaleString() }} SC
+          </button>
+        </div>
+      </div>
+
+      <!-- Feedback -->
+      <div
+        v-if="error"
+        class="bg-red-50 border border-red-100 text-red-600 text-sm p-3 rounded-xl"
+      >
         {{ error }}
       </div>
-
-      <div v-if="successMessage" class="success-message">
-        {{ successMessage }}
+      <div
+        v-if="successMessage"
+        class="bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm p-3 rounded-xl font-medium"
+      >
+        ✓ {{ successMessage }}
       </div>
 
-      <!-- Preset Amounts -->
-      <div class="preset-amounts">
-        <p>Quick amounts:</p>
-        <button
-          v-for="preset in presetAmounts"
-          :key="preset"
-          @click="setAmount(preset)"
-          :disabled="loading"
-          class="preset-btn"
-        >
-          +{{ preset }}
-        </button>
-      </div>
-
-      <!-- Info -->
-      <div class="info-box">
-        <p>
-          <strong>Available for top-up:</strong> Unlimited • <strong>Min amount:</strong> 1 SC •
-          <strong>Max amount:</strong> 100,000 SC
-        </p>
-      </div>
+      <p class="text-xs text-slate-400 border-t border-slate-100 pt-3">
+        Giới hạn: 1 SC tối thiểu · 100,000 SC tối đa mỗi lần nạp
+      </p>
     </div>
   </div>
 </template>
@@ -72,7 +88,6 @@ const authStore = useAuthStore()
 
 const emit = defineEmits(['topup-success'])
 
-// Form state
 const amount = ref('')
 const loading = computed(() => walletStore.loading)
 const error = computed(() => walletStore.error)
@@ -80,200 +95,27 @@ const successMessage = ref('')
 
 const presetAmounts = [100, 500, 1000, 5000]
 
-// KYC check
-const kycVerified = computed(() => {
-  return authStore.user?.kyc_status === 'VERIFIED'
-})
+const kycVerified = computed(() => authStore.user?.kyc_status === 'VERIFIED')
 
 const setAmount = (value) => {
   amount.value = amount.value ? amount.value + value : value
 }
 
 const handleTopUp = async () => {
-  if (!amount.value || amount.value <= 0) {
-    return
-  }
-
+  if (!amount.value || amount.value <= 0) return
   successMessage.value = ''
-
   try {
     await walletStore.topUp(amount.value)
-    successMessage.value = `Successfully topped up ${amount.value} SC!`
+    successMessage.value = `Nạp thành công ${amount.value.toLocaleString()} SC!`
     amount.value = ''
     emit('topup-success')
-
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      successMessage.value = ''
-    }, 3000)
+    setTimeout(() => { successMessage.value = '' }, 3000)
   } catch (err) {
-    // Error is handled by walletStore
+    // Error handled by walletStore
   }
 }
 
 onMounted(async () => {
-  // Ensure we have current user info for KYC check
-  if (!authStore.user) {
-    await authStore.fetchUser()
-  }
+  if (!authStore.user) await authStore.fetchUser()
 })
 </script>
-
-<style scoped>
-.topup-form {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.kyc-warning {
-  background: #fef3cd;
-  border: 1px solid #ffc107;
-  border-radius: 8px;
-  padding: 15px;
-  color: #856404;
-}
-
-.kyc-warning p {
-  margin: 8px 0;
-}
-
-.kyc-warning strong {
-  color: #c33;
-}
-
-.btn-link {
-  display: inline-block;
-  margin-top: 10px;
-  padding: 8px 16px;
-  background: #ffc107;
-  color: #333;
-  text-decoration: none;
-  border-radius: 4px;
-  font-weight: 500;
-  transition: background 0.3s;
-}
-
-.btn-link:hover {
-  background: #ffb800;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-label {
-  font-weight: 600;
-  color: #333;
-}
-
-.input-row {
-  display: flex;
-  gap: 10px;
-}
-
-input {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 14px;
-}
-
-input:focus {
-  outline: none;
-  border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-}
-
-input:disabled {
-  background: #f5f5f5;
-  cursor: not-allowed;
-}
-
-.btn-topup {
-  padding: 10px 24px;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.3s;
-}
-
-.btn-topup:hover:not(:disabled) {
-  background: #5568d3;
-}
-
-.btn-topup:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.error-message {
-  background: #fee;
-  border: 1px solid #fcc;
-  color: #c33;
-  padding: 10px;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.success-message {
-  background: #efe;
-  border: 1px solid #cfc;
-  color: #3c3;
-  padding: 10px;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.preset-amounts {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.preset-amounts p {
-  margin: 0;
-  font-size: 14px;
-  color: #666;
-}
-
-.preset-btn {
-  padding: 6px 12px;
-  background: #f0f0f0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 12px;
-  transition: all 0.3s;
-}
-
-.preset-btn:hover:not(:disabled) {
-  background: #e0e0e0;
-  border-color: #667eea;
-}
-
-.preset-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.info-box {
-  background: #f9f9f9;
-  border-left: 3px solid #667eea;
-  padding: 10px;
-  border-radius: 4px;
-  font-size: 13px;
-  color: #666;
-}
-
-.info-box p {
-  margin: 0;
-}
-</style>

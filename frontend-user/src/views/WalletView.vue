@@ -1,29 +1,46 @@
 <template>
-  <div class="wallet-container">
-    <!-- Balance Card -->
-    <BalanceCard v-if="!loading" />
+  <div class="min-h-screen bg-slate-50">
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
 
-    <!-- Top-up Section -->
-    <div class="topup-section">
-      <h2>Top-up Wallet</h2>
-      <TopUpForm @topup-success="handleTopUpSuccess" />
-    </div>
+      <div class="mb-6">
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Ví SimCoin</h1>
+        <p class="text-slate-500 text-sm mt-0.5">Quản lý số dư và lịch sử giao dịch của bạn.</p>
+      </div>
 
-    <!-- Transaction History -->
-    <div class="transactions-section">
-      <h2>Transaction History</h2>
-      <TransactionList />
-    </div>
+      <!-- Balance card -->
+      <BalanceCard class="mb-6" />
 
-    <!-- Loading -->
-    <div v-if="loading" class="loading">
-      <p>Loading wallet data...</p>
-    </div>
+      <!-- Top-up section -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6 mb-6">
+        <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <span
+            class="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 text-sm font-bold"
+          >+</span>
+          Nạp tiền
+        </h2>
+        <TopUpForm @topup-success="handleTopUpSuccess" />
+      </div>
 
-    <!-- Error -->
-    <div v-if="error" class="error-alert">
-      <p>{{ error }}</p>
-      <button @click="walletStore.clearError">Dismiss</button>
+      <!-- Transaction history -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <h2 class="text-base font-bold text-slate-900 mb-4 flex items-center gap-2">
+          <span
+            class="w-6 h-6 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500 text-sm"
+          >≡</span>
+          Lịch sử giao dịch
+        </h2>
+        <TransactionList />
+      </div>
+
+      <!-- Error banner -->
+      <div
+        v-if="error"
+        class="mt-4 bg-red-50 border border-red-100 text-red-600 p-4 rounded-xl flex justify-between items-center text-sm"
+      >
+        <span>{{ error }}</span>
+        <button @click="walletStore.clearError" class="font-bold hover:text-red-800 ml-4">✕</button>
+      </div>
+
     </div>
   </div>
 </template>
@@ -36,8 +53,6 @@ import TopUpForm from '@/components/TopUpForm.vue'
 import TransactionList from '@/components/TransactionList.vue'
 
 const walletStore = useWalletStore()
-
-const loading = computed(() => walletStore.loading)
 const error = computed(() => walletStore.error)
 
 onMounted(async () => {
@@ -45,64 +60,5 @@ onMounted(async () => {
   await walletStore.fetchTransactions()
 })
 
-const handleTopUpSuccess = async () => {
-  // Transactions are refreshed automatically after top-up
-  // Just wait a moment and then could show a success message
-}
+const handleTopUpSuccess = async () => {}
 </script>
-
-<style scoped>
-.wallet-container {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 20px;
-}
-
-.topup-section,
-.transactions-section {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  margin-top: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-h2 {
-  font-size: 18px;
-  margin-top: 0;
-  color: #333;
-}
-
-.loading,
-.error-alert {
-  text-align: center;
-  padding: 20px;
-  margin-top: 20px;
-  border-radius: 8px;
-}
-
-.loading {
-  background: #f0f0f0;
-  color: #666;
-}
-
-.error-alert {
-  background: #fee;
-  color: #c33;
-  border: 1px solid #fcc;
-}
-
-.error-alert button {
-  margin-top: 10px;
-  padding: 8px 16px;
-  background: #c33;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.error-alert button:hover {
-  background: #a22;
-}
-</style>

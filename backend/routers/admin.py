@@ -1,7 +1,6 @@
-"""Admin router — dashboard metrics, user/policy/claim management, KYC review, ML model stats, risk analytics."""
+"""Admin router — dashboard metrics, user/policy/claim management, KYC review, risk analytics."""
 import logging
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Optional, List
 from uuid import UUID
 
@@ -37,8 +36,6 @@ from schemas.user import UserResponse
 from schemas.policy import PolicyResponse, PolicyListResponse
 from schemas.claim import ClaimResponse, ClaimListResponse, ClaimReviewRequest
 from services import claims_engine
-from services.risk_engine import get_risk_engine
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Admin"])
@@ -361,9 +358,8 @@ async def get_risk_analytics(
             RiskData.event_severity.isnot(None),
         ).scalar()
 
-        # Event share: proportion of risk events in this category vs total
         total_risk_records = db.query(func.count(RiskData.id)).scalar() or 1
-        event_probability = event_count / total_risk_records if total_risk_records > 0 else 0.0  # category share
+        event_probability = event_count / total_risk_records
 
         category_stats.append(CategoryRiskStats(
             category=cat.value,
@@ -450,13 +446,6 @@ async def get_risk_analytics(
         for r in region_rows
     ]
 
-    # ML models status
-    try:
-        risk_engine = get_risk_engine()
-        ml_status = "available" if risk_engine.models_loaded else "partial"
-    except Exception:
-        ml_status = "unavailable"
-
     return RiskAnalyticsResponse(
         total_policies=total_policies,
         total_premiums=round(total_premiums, 2),
@@ -465,113 +454,58 @@ async def get_risk_analytics(
         category_stats=category_stats,
         monthly_trends=monthly_trends,
         region_stats=region_stats,
-        ml_models_status=ml_status,
     )
 
 
 # ---------------------------------------------------------------------------
-# ML Model stats + retrain (already partially implemented, enhancing)
+# User actions — disable/enable, delete
 # ---------------------------------------------------------------------------
 
-@router.get("/ml/model-stats")
-async def get_ml_model_stats(
+@router.patch("/users/{user_id}/toggle-status")
+async def toggle_user_status(
+    user_id: UUID,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Lấy thống kê ML models (accuracy, precision, recall, f1)."""
-    try:
-        risk_engine = get_risk_engine()
-        stats = risk_engine.get_model_stats()
-
-        return {
-            "status": "success",
-            "data": stats,
-            "models_available": stats["models_available"],
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-    except Exception as e:
-        logger.error(f"Error getting ML model stats: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to retrieve model statistics",
-        )
+    """Toggle user is_active. Cannot disable yourself or another admin."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Không thể tự khóa tài khoản của mình")
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Không thể khóa tài khoản Admin")
+    user.is_active = not user.is_active
+    db.commit()
+    db.refresh(user)
+    logger.info(f"User {user.email} {'enabled' if user.is_active else 'disabled'} by admin {current_user.email}")
+    return UserResponse.model_validate(user)
 
 
-@router.post("/ml/retrain")
-async def retrain_ml_models(
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: UUID,
+    db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Trigger ML model retraining from external data files."""
-    try:
-        from seed.train_models import ModelTrainer
-
-        logger.info(f"Admin {current_user.email} triggered ML model retraining")
-
-        data_dir = ModelTrainer.get_data_dir()
-        models_dir = ModelTrainer.get_models_dir()
-
-        flight_data_path = data_dir / "vietnam_airlines_flights.csv"
-        weather_data_path = data_dir / "weather_data.csv"
-
-        results = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "flight_delay": {"status": "pending"},
-            "weather": {"status": "pending"},
-        }
-
-        if flight_data_path.exists():
-            try:
-                from services.ml_models import FlightDelayModel
-
-                X_flight, y_flight, features_flight = ModelTrainer.prepare_flight_data(flight_data_path)
-                model_flight = FlightDelayModel()
-                model_flight.feature_names = features_flight
-                model_flight.fit(X_flight, y_flight)
-                model_flight.save(models_dir / "flight_delay.joblib")
-
-                results["flight_delay"] = {
-                    "status": "success",
-                    "samples": len(X_flight),
-                    "accuracy": float(model_flight.accuracy),
-                }
-            except Exception as e:
-                results["flight_delay"] = {"status": "error", "error": str(e)}
-        else:
-            results["flight_delay"] = {"status": "skipped", "reason": "Data file not found"}
-
-        if weather_data_path.exists():
-            try:
-                from services.ml_models import WeatherModel
-
-                X_weather, y_weather, features_weather = ModelTrainer.prepare_weather_data(weather_data_path)
-                model_weather = WeatherModel()
-                model_weather.feature_names = features_weather
-                model_weather.fit(X_weather, y_weather)
-                model_weather.save(models_dir / "weather.joblib")
-
-                results["weather"] = {
-                    "status": "success",
-                    "samples": len(X_weather),
-                    "accuracy": float(model_weather.accuracy),
-                }
-            except Exception as e:
-                results["weather"] = {"status": "error", "error": str(e)}
-        else:
-            results["weather"] = {"status": "skipped", "reason": "Data file not found"}
-
-        # Reload risk engine
-        try:
-            from services.risk_engine import _risk_engine
-            if _risk_engine is not None:
-                _risk_engine._load_models()
-                results["risk_engine_reloaded"] = True
-        except Exception:
-            results["risk_engine_reloaded"] = False
-
-        return {"status": "success", "data": results}
-
-    except Exception as e:
-        logger.error(f"Error during ML model retraining: {e}")
+    """Delete user permanently. Cannot delete yourself, another admin, or user with active policies."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if user.id == current_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Không thể xóa tài khoản của mình")
+    if user.role == UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Không thể xóa tài khoản Admin")
+    active_count = (
+        db.query(func.count(Policy.id))
+        .filter(Policy.user_id == user_id, Policy.status == PolicyStatus.ACTIVE)
+        .scalar() or 0
+    )
+    if active_count > 0:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Model retraining failed. Check server logs for details.",
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Không thể xóa: user đang có {active_count} hợp đồng hoạt động",
         )
+    db.delete(user)
+    db.commit()
+    logger.info(f"User {user.email} deleted by admin {current_user.email}")

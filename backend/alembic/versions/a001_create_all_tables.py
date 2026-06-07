@@ -27,7 +27,7 @@ transaction_type = postgresql.ENUM(
     name="transactiontype", create_type=False,
 )
 product_category = postgresql.ENUM(
-    "FLIGHT_DELAY", "CROP_WEATHER", "GADGET", "NATURAL_DISASTER", "RAINFALL_EVENT",
+    "FLIGHT_DELAY", "CROP_WEATHER",
     name="productcategory", create_type=False,
 )
 policy_status = postgresql.ENUM(

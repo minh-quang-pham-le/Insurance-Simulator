@@ -1,6 +1,6 @@
 """
 Idempotent seed script.
-Creates: admin user, test user with 10000 SC wallet, 5 products, 270+ risk data records.
+Creates: admin user, test user with 10000 SC wallet, 2 products, 120 risk data records.
 
 Usage: python -m seed.seed_data
 """
@@ -10,6 +10,7 @@ from pathlib import Path
 from decimal import Decimal
 from datetime import date
 
+import pandas as pd
 from passlib.hash import bcrypt
 
 from config.database import SessionLocal, engine, Base
@@ -98,12 +99,7 @@ def seed_users(db):
 
 
 def seed_products(db, admin):
-    """Load 5 insurance products from products.json."""
-    existing = db.query(InsuranceProduct).count()
-    if existing >= 5:
-        print(f"  Products already seeded ({existing} found)")
-        return
-
+    """Load insurance products from products.json. Always syncs schema/labels."""
     with open(SEED_DIR / "products.json") as f:
         products_data = json.load(f)
 
@@ -112,6 +108,11 @@ def seed_products(db, admin):
             InsuranceProduct.name == p["name"]
         ).first()
         if exists:
+            exists.parameters_schema = p["parameters_schema"]
+            exists.trigger_conditions = p["trigger_conditions"]
+            exists.description = p["description"]
+            exists.short_description = p.get("short_description")
+            print(f"  Updated product schema: {p['name']}")
             continue
 
         product = InsuranceProduct(
@@ -136,30 +137,86 @@ def seed_products(db, admin):
 
 
 def seed_risk_data(db):
-    """Load historical risk data from risk_data.json."""
-    existing = db.query(RiskData).count()
-    if existing >= 250:
-        print(f"  Risk data already seeded ({existing} records found)")
+    """Seed risk_data table from ml_data CSV files. Idempotent — skips if already loaded."""
+    ML_DATA_DIR = SEED_DIR.parent / "ml_data"
+
+    csv_count = db.query(RiskData).filter(RiskData.source.like("ml_data/%")).count()
+    if csv_count > 0:
+        print(f"  Risk data already seeded from CSV ({csv_count} records)")
         return
 
-    with open(SEED_DIR / "risk_data.json") as f:
-        risk_records = json.load(f)
+    db.query(RiskData).delete()
+    db.flush()
 
-    for r in risk_records:
-        record = RiskData(
-            id=uuid.uuid4(),
-            product_category=ProductCategory(r["product_category"]),
-            region=r.get("region"),
-            event_date=date.fromisoformat(r["event_date"]),
-            event_type=r["event_type"],
-            event_severity=Decimal(str(r["event_severity"])) if r.get("event_severity") is not None else None,
-            event_data=r.get("event_data"),
-            source=r["source"],
-        )
-        db.add(record)
+    count = 0
+
+    # --- Weather data ---
+    weather_path = ML_DATA_DIR / "weather_data.csv"
+    if weather_path.exists():
+        df = pd.read_csv(weather_path)
+        for _, row in df.iterrows():
+            severity = None
+            if pd.notna(row.get("rain")):
+                severity = float(row["rain"])
+            elif pd.notna(row.get("temperature")):
+                severity = float(row["temperature"])
+
+            event_data = {}
+            if pd.notna(row.get("temperature")):
+                event_data["temperature"] = float(row["temperature"])
+            if pd.notna(row.get("rain")):
+                event_data["rain"] = float(row["rain"])
+            if pd.notna(row.get("weather_code")):
+                event_data["weather_code"] = int(row["weather_code"])
+
+            db.add(RiskData(
+                id=uuid.uuid4(),
+                product_category=ProductCategory.CROP_WEATHER,
+                region=str(row["location"]) if pd.notna(row.get("location")) else None,
+                event_date=date.fromisoformat(str(row["date"])),
+                event_type="WEATHER_EVENT" if row.get("event_occurred", 0) == 1 else "NORMAL_DAY",
+                event_severity=Decimal(str(round(severity, 2))) if severity is not None else None,
+                event_data=event_data or None,
+                source="ml_data/weather_data.csv",
+            ))
+            count += 1
+    else:
+        print(f"  Warning: {weather_path} not found")
+
+    # --- Flight data ---
+    flight_path = ML_DATA_DIR / "vietnam_airlines_flights.csv"
+    if flight_path.exists():
+        df = pd.read_csv(flight_path, encoding="utf-8-sig")
+        df["arr_actual"] = pd.to_datetime(df["Arrival Time"], errors="coerce")
+        df["arr_sched"] = pd.to_datetime(df["Estimated Arrival"], errors="coerce")
+        df["delay_min"] = (df["arr_actual"] - df["arr_sched"]).dt.total_seconds() / 60
+
+        for _, row in df.iterrows():
+            if pd.isna(row.get("arr_actual")):
+                continue
+            delay = float(row["delay_min"]) if pd.notna(row.get("delay_min")) else 0.0
+            db.add(RiskData(
+                id=uuid.uuid4(),
+                product_category=ProductCategory.FLIGHT_DELAY,
+                region=str(row.get("Departure City", "Unknown")),
+                event_date=row["arr_actual"].date(),
+                event_type=str(row.get("Flight Status", "unknown")).upper(),
+                event_severity=Decimal(str(round(max(delay, 0.0), 2))),
+                event_data={
+                    "airline_code": str(row.get("Airline Code", "")),
+                    "flight_number": str(row.get("Flight Number", "")),
+                    "departure_city": str(row.get("Departure City", "")),
+                    "arrival_city": str(row.get("Arrival City", "")),
+                    "delay_minutes": round(delay, 1),
+                },
+                source="ml_data/vietnam_airlines_flights.csv",
+            ))
+            count += 1
+    else:
+        print(f"  Warning: {flight_path} not found")
 
     db.flush()
-    print(f"  Loaded {len(risk_records)} risk data records")
+    print(f"  Loaded {count} risk data records from ml_data CSV files")
 
 
 def main():

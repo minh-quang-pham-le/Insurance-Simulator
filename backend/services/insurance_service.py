@@ -9,27 +9,20 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from models.insurance_product import InsuranceProduct
-from models.risk_data import RiskData
 from models.enums import ProductCategory
 from schemas.insurance import ProductCreate, ProductUpdate
+from services.risk_engine import get_risk_engine
 
 logger = logging.getLogger(__name__)
 
 def _calculate_basic_risk_score(db: Session, category: ProductCategory) -> float:
-    """
-    Tính toán điểm rủi ro cơ bản (thang điểm 1-10) dựa trên dữ liệu lịch sử.
-    Đây là phiên bản MVP cho Phase 1. 
-    """
+    """Risk score (1-10) for catalog display, derived from historical CSV data."""
     try:
-        event_count = db.query(RiskData).filter(RiskData.product_category == category).count()
-        base_score = 1.0
-        calculated_score = base_score + (event_count / 50.0) * 9.0
-
-        final_score = round(min(calculated_score, 10.0), 1)
-        return final_score
+        product_id = category.value.lower()
+        return get_risk_engine().get_catalog_risk_score(product_id)
     except Exception as e:
-        logger.error(f"Lỗi khi tính risk score cho category {category}: {e}")
-        return 5.0  
+        logger.error("Risk score error for %s: %s", category, e)
+        return 5.0
 
 
 def _attach_risk_score(db: Session, product: InsuranceProduct) -> InsuranceProduct:

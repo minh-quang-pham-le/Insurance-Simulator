@@ -28,17 +28,16 @@ router = APIRouter(
 
 
 @router.post("/calculate-premium", response_model=PremiumCalculateResponse, status_code=status.HTTP_200_OK)
-def calculate_premium(
+async def calculate_premium(
     request: PremiumCalculateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ) -> Any:
     """
-    Tính toán phí bảo hiểm mô phỏng (Preview) bằng ML Risk Engine.
+    Tính toán phí bảo hiểm (Preview). Weather products dùng live OWM forecast.
     Bất kỳ user nào đăng nhập cũng xem được (Không yêu cầu KYC).
-    Trả về chi tiết: event_probability (%), risk_multiplier, và final_premium.
     """
-    return policy_service.calculate_premium_logic(
+    return await policy_service.calculate_premium_logic(
         db=db,
         product_id=request.product_id,
         parameters=request.parameters,

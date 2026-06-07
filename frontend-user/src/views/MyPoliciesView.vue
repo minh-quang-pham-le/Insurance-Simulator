@@ -1,73 +1,123 @@
 <template>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="flex justify-between items-center mb-8">
-      <div>
-        <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Hợp Đồng Của Tôi</h1>
-        <p class="mt-2 text-sm text-gray-600">Quản lý các gói bảo hiểm bạn đã tham gia.</p>
+  <div class="min-h-screen bg-slate-50">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+      <div class="flex items-start justify-between mb-6">
+        <div>
+          <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">Hợp Đồng Của Tôi</h1>
+          <p class="text-slate-500 text-sm mt-0.5">Quản lý các gói bảo hiểm bạn đã tham gia.</p>
+        </div>
+        <router-link
+          to="/insurance"
+          class="bg-blue-600 hover:bg-blue-700 active:scale-95 text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-all"
+        >
+          + Mua mới
+        </router-link>
       </div>
-      <router-link to="/insurance" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-        + Mua Bảo Hiểm Mới
-      </router-link>
-    </div>
 
-    <div v-if="policyStore.isLoading" class="flex justify-center py-20">
-      <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-    </div>
+      <!-- Loading -->
+      <div v-if="policyStore.isLoading" class="flex justify-center py-20">
+        <div class="animate-spin rounded-full h-12 w-12 border-4 border-blue-100 border-t-blue-600"></div>
+      </div>
 
-    <div v-else-if="policyStore.error" class="bg-red-50 text-red-600 p-4 rounded-lg">
-      {{ policyStore.error }}
-    </div>
+      <!-- Error -->
+      <div
+        v-else-if="policyStore.error"
+        class="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 text-sm"
+      >
+        {{ policyStore.error }}
+      </div>
 
-    <div v-else-if="policyStore.myPolicies.length === 0" class="text-center py-20 bg-white rounded-xl border border-gray-200">
-      <span class="text-5xl mb-4 block">📄</span>
-      <h3 class="text-lg font-medium text-gray-900">Bạn chưa có hợp đồng nào</h3>
-      <p class="text-gray-500 mt-1">Hãy khám phá các gói bảo hiểm vi mô của chúng tôi.</p>
-    </div>
+      <!-- Empty -->
+      <div
+        v-else-if="policyStore.myPolicies.length === 0"
+        class="text-center py-20 bg-white rounded-2xl border border-slate-200"
+      >
+        <div class="text-5xl mb-4">📄</div>
+        <h3 class="text-base font-bold text-slate-800">Chưa có hợp đồng nào</h3>
+        <p class="text-slate-500 text-sm mt-1 mb-5">Hãy khám phá các gói bảo hiểm vi mô của chúng tôi.</p>
+        <router-link
+          to="/insurance"
+          class="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors"
+        >
+          Khám phá ngay →
+        </router-link>
+      </div>
 
-    <div v-else class="bg-white shadow overflow-hidden sm:rounded-lg border border-gray-200">
-      <ul class="divide-y divide-gray-200">
-        <li v-for="policy in policyStore.myPolicies" :key="policy.id" class="p-6 hover:bg-gray-50 transition-colors">
-          <div class="flex items-center justify-between">
-            <div class="flex-1">
-              <div class="flex items-center justify-between">
-                <h3 class="text-lg font-bold text-blue-900">{{ policy.product_name || 'Gói Bảo Hiểm' }}</h3>
-                <span :class="getStatusClass(policy.status)" class="px-3 py-1 inline-flex text-xs leading-5 font-semibold rounded-full uppercase tracking-wide">
-                  {{ formatStatus(policy.status) }}
-                </span>
+      <!-- Policy list -->
+      <div v-else class="space-y-4">
+        <div
+          v-for="policy in policyStore.myPolicies"
+          :key="policy.id"
+          class="bg-white rounded-2xl border border-slate-200 p-6 transition-all"
+          :class="{ 'opacity-60': policy.status === 'CANCELLED' || policy.status === 'EXPIRED' }"
+        >
+          <!-- Header -->
+          <div class="flex items-start justify-between gap-4 mb-5">
+            <div class="flex items-center gap-3">
+              <div
+                class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+              >
+                {{ getCategoryIcon(policy.product_category) }}
               </div>
-              
-              <div class="mt-4 grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p class="text-gray-500">Phí đã đóng</p>
-                  <p class="font-semibold text-gray-900">{{ policy.premium_paid }} SC</p>
-                </div>
-                <div>
-                  <p class="text-gray-500">Mức bồi thường</p>
-                  <p class="font-semibold text-green-600">{{ policy.payout_amount }} SC</p>
-                </div>
-                <div>
-                  <p class="text-gray-500">Ngày bắt đầu</p>
-                  <p class="font-medium text-gray-900">{{ formatDate(policy.start_date) }}</p>
-                </div>
-                <div>
-                  <p class="text-gray-500">Ngày kết thúc</p>
-                  <p class="font-medium text-gray-900">{{ formatDate(policy.end_date) }}</p>
-                </div>
+              <div>
+                <h3 class="text-base font-bold text-slate-900 leading-tight">
+                  {{ policy.product_name || 'Gói Bảo Hiểm' }}
+                </h3>
+                <p class="text-slate-400 text-xs mt-0.5 font-mono">
+                  #{{ policy.id.substring(0, 8).toUpperCase() }}
+                </p>
               </div>
             </div>
+            <span
+              class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide flex-shrink-0"
+              :class="getStatusChip(policy.status)"
+            >
+              {{ formatStatus(policy.status) }}
+            </span>
           </div>
-          
-          <div class="mt-4 pt-4 border-t border-gray-100 flex justify-end" v-if="policy.status === 'ACTIVE'">
-            <button 
+
+          <!-- Stats grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+              <p class="text-slate-400 text-[11px] mb-0.5">Phí đóng</p>
+              <p class="font-bold text-slate-800 text-sm tabular-nums">
+                {{ policy.premium_paid.toLocaleString() }} SC
+              </p>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+              <p class="text-slate-400 text-[11px] mb-0.5">Mức bồi thường</p>
+              <p class="font-bold text-emerald-600 text-sm tabular-nums">
+                {{ policy.payout_amount.toLocaleString() }} SC
+              </p>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+              <p class="text-slate-400 text-[11px] mb-0.5">Ngày bắt đầu</p>
+              <p class="font-semibold text-slate-800 text-sm">{{ formatDate(policy.start_date) }}</p>
+            </div>
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+              <p class="text-slate-400 text-[11px] mb-0.5">Ngày kết thúc</p>
+              <p class="font-semibold text-slate-800 text-sm">{{ formatDate(policy.end_date) }}</p>
+            </div>
+          </div>
+
+          <!-- Cancel action -->
+          <div
+            v-if="policy.status === 'ACTIVE'"
+            class="flex items-center justify-between pt-4 border-t border-slate-100"
+          >
+            <p class="text-xs text-slate-400">Hoàn 80% phí khi huỷ</p>
+            <button
               @click="handleCancel(policy.id)"
               :disabled="cancellingId === policy.id"
-              class="text-red-600 hover:text-red-800 font-medium text-sm transition-colors disabled:opacity-50"
+              class="text-red-500 hover:text-red-700 font-semibold text-sm transition-colors disabled:opacity-40"
             >
-              {{ cancellingId === policy.id ? 'Đang xử lý...' : 'Hủy hợp đồng (Hoàn 80%)' }}
+              {{ cancellingId === policy.id ? 'Đang xử lý...' : 'Huỷ hợp đồng' }}
             </button>
           </div>
-        </li>
-      </ul>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
@@ -84,12 +134,11 @@ onMounted(() => {
 })
 
 const handleCancel = async (id) => {
-  if (!confirm('Bạn có chắc chắn muốn hủy hợp đồng này? Phí hoàn lại sẽ là 80%.')) return
-  
+  if (!confirm('Bạn có chắc muốn huỷ hợp đồng này? Phí hoàn lại là 80%.')) return
   cancellingId.value = id
   try {
     await policyStore.cancelPolicy(id)
-    alert('Đã hủy hợp đồng thành công. Tiền đã được hoàn về ví.')
+    alert('Đã huỷ hợp đồng thành công. Tiền đã được hoàn về ví.')
   } catch (error) {
     alert(error.message)
   } finally {
@@ -97,29 +146,32 @@ const handleCancel = async (id) => {
   }
 }
 
-// Helpers format
 const formatDate = (dateString) => {
   if (!dateString) return ''
-  const d = new Date(dateString)
-  return d.toLocaleDateString('vi-VN')
+  return new Date(dateString).toLocaleDateString('vi-VN')
 }
 
-const getStatusClass = (status) => {
-  const classes = {
-    'ACTIVE': 'bg-green-100 text-green-800',
-    'EXPIRED': 'bg-gray-100 text-gray-800',
-    'CLAIMED': 'bg-blue-100 text-blue-800',
-    'CANCELLED': 'bg-red-100 text-red-800'
+const getCategoryIcon = (category) => {
+  const icons = { FLIGHT_DELAY: '✈️', CROP_WEATHER: '🌾' }
+  return icons[category] || '🛡️'
+}
+
+const getStatusChip = (status) => {
+  const map = {
+    ACTIVE:    'bg-emerald-100 text-emerald-700',
+    EXPIRED:   'bg-slate-100 text-slate-500',
+    CLAIMED:   'bg-blue-100 text-blue-700',
+    CANCELLED: 'bg-red-100 text-red-500',
   }
-  return classes[status] || 'bg-gray-100 text-gray-800'
+  return map[status] || 'bg-slate-100 text-slate-600'
 }
 
 const formatStatus = (status) => {
   const names = {
-    'ACTIVE': 'Đang bảo vệ',
-    'EXPIRED': 'Hết hạn',
-    'CLAIMED': 'Đã bồi thường',
-    'CANCELLED': 'Đã hủy'
+    ACTIVE:    'Đang bảo vệ',
+    EXPIRED:   'Hết hạn',
+    CLAIMED:   'Đã bồi thường',
+    CANCELLED: 'Đã huỷ',
   }
   return names[status] || status
 }

@@ -126,21 +126,6 @@
         />
       </div>
 
-      <!-- ML Model Status -->
-      <div class="bg-white rounded-xl border border-gray-200 p-5">
-        <h3 class="font-semibold text-gray-800 mb-2">ML Models Status</h3>
-        <span
-          :class="[
-            'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium',
-            data.ml_models_status === 'available' ? 'bg-green-100 text-green-700' :
-            data.ml_models_status === 'partial' ? 'bg-yellow-100 text-yellow-700' :
-            'bg-red-100 text-red-700'
-          ]"
-        >
-          {{ data.ml_models_status === 'available' ? 'All Models Available' :
-             data.ml_models_status === 'partial' ? 'Partially Available' : 'Unavailable' }}
-        </span>
-      </div>
     </template>
   </div>
 </template>

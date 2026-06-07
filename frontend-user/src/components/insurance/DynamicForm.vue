@@ -5,7 +5,7 @@
         {{ field.label }} <span v-if="field.required" class="text-red-500">*</span>
       </label>
 
-      <input 
+      <input
         v-if="field.type === 'string'"
         type="text"
         :id="field.name"
@@ -15,19 +15,19 @@
         class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
       />
 
-      <input 
+      <input
         v-else-if="field.type === 'number'"
         type="number"
         :id="field.name"
         v-model.number="formData[field.name]"
         :min="field.min"
         :max="field.max"
-        :step="field.step"
+        :step="field.step ?? 'any'"
         :required="field.required"
         class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
       />
 
-      <input 
+      <input
         v-else-if="field.type === 'date'"
         type="date"
         :id="field.name"
@@ -36,7 +36,22 @@
         class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
       />
 
-      <select 
+      <!-- City dropdown — auto-fills location_lat and location_lon -->
+      <select
+        v-else-if="field.type === 'city_select'"
+        :id="field.name"
+        v-model="formData[field.name]"
+        @change="onCitySelect(field)"
+        :required="field.required"
+        class="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+      >
+        <option value="" disabled>Chọn thành phố</option>
+        <option v-for="opt in field.options" :key="opt.value" :value="opt.value">
+          {{ opt.label }}
+        </option>
+      </select>
+
+      <select
         v-else-if="field.type === 'select'"
         :id="field.name"
         v-model="formData[field.name]"
@@ -50,7 +65,7 @@
       </select>
     </div>
 
-    <button 
+    <button
       type="submit"
       class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-colors mt-6"
     >
@@ -73,7 +88,6 @@ const emit = defineEmits(['submit'])
 
 const formData = ref({})
 
-// Khởi tạo giá trị mặc định từ schema
 const initFormData = () => {
   const initialData = {}
   if (props.schema && props.schema.fields) {
@@ -85,6 +99,14 @@ const initFormData = () => {
 }
 
 watch(() => props.schema, initFormData, { immediate: true })
+
+const onCitySelect = (field) => {
+  const selected = field.options.find(o => o.value === formData.value[field.name])
+  if (selected) {
+    formData.value.location_lat = selected.lat
+    formData.value.location_lon = selected.lon
+  }
+}
 
 const handleSubmit = () => {
   emit('submit', formData.value)

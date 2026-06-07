@@ -1,9 +1,8 @@
 <template>
-  <div class="min-h-screen bg-gray-100">
-    <AdminHeader v-if="authStore.isAuthenticated" />
-    <div class="flex" v-if="authStore.isAuthenticated">
+  <div class="min-h-screen bg-slate-50">
+    <div v-if="authStore.isAuthenticated" class="flex min-h-screen">
       <AdminSidebar />
-      <main class="flex-1">
+      <main class="flex-1 overflow-auto min-w-0">
         <RouterView />
       </main>
     </div>
@@ -15,7 +14,6 @@
 
 <script setup>
 import { useAuthStore } from './stores/auth'
-import AdminHeader from './components/AdminHeader.vue'
 import AdminSidebar from './components/AdminSidebar.vue'
 
 const authStore = useAuthStore()

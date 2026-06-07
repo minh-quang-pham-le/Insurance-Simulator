@@ -1,71 +1,80 @@
 <template>
-  <div class="transaction-list">
-    <div v-if="loading" class="loading">
-      Loading transactions...
+  <div>
+    <!-- Loading -->
+    <div v-if="loading" class="py-8 text-center">
+      <div
+        class="animate-spin rounded-full h-8 w-8 border-4 border-blue-100 border-t-blue-600 mx-auto mb-2"
+      ></div>
+      <p class="text-slate-400 text-sm">Đang tải giao dịch...</p>
     </div>
 
-    <div v-else-if="transactions.length === 0" class="empty-state">
-      <p>No transactions yet. Top up your wallet to get started!</p>
+    <!-- Empty -->
+    <div v-else-if="transactions.length === 0" class="py-10 text-center">
+      <div class="text-4xl mb-3">📋</div>
+      <p class="text-slate-500 text-sm">Chưa có giao dịch nào. Hãy nạp tiền để bắt đầu!</p>
     </div>
 
-    <div v-else>
-      <!-- Transactions Table -->
-      <div class="table-wrapper">
-        <table class="transactions-table">
-          <thead>
-            <tr>
-              <th>Date & Time</th>
-              <th>Type</th>
-              <th>Amount</th>
-              <th>Balance After</th>
-              <th>Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="transaction in transactions" :key="transaction.id" class="transaction-row">
-              <td class="date">
-                {{ formatDate(transaction.created_at) }}
-              </td>
-              <td class="type">
-                <span :class="`badge badge-${transaction.type.toLowerCase()}`">
-                  {{ formatTransactionType(transaction.type) }}
-                </span>
-              </td>
-              <td class="amount" :class="getAmountClass(transaction.type)">
-                {{ getAmountSign(transaction.type) }}{{ transaction.amount.toFixed(2) }}
-              </td>
-              <td class="balance">
-                {{ transaction.balance_after.toFixed(2) }} SC
-              </td>
-              <td class="description">
-                {{ transaction.description }}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+    <!-- List -->
+    <div v-else class="space-y-2">
+      <div
+        v-for="tx in transactions"
+        :key="tx.id"
+        class="flex items-center justify-between p-4 rounded-xl border border-slate-100 hover:border-slate-200 hover:bg-slate-50 transition-all"
+      >
+        <!-- Icon + info -->
+        <div class="flex items-center gap-3">
+          <div
+            class="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-base"
+            :class="txIconBg(tx.type)"
+          >
+            {{ txIcon(tx.type) }}
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-slate-800">
+              {{ formatTransactionType(tx.type) }}
+            </p>
+            <p class="text-xs text-slate-400 mt-0.5">{{ formatDate(tx.created_at) }}</p>
+          </div>
+        </div>
 
-      <!-- Pagination -->
-      <div v-if="pagination.total > 0" class="pagination">
-        <button
-          @click="goToPreviousPage"
-          :disabled="pagination.skip === 0 || loading"
-          class="btn-pag"
-        >
-          ← Previous
-        </button>
-        <span class="page-info">
-          {{ pagination.skip + 1 }}-{{ Math.min(pagination.skip + pagination.limit, pagination.total) }}
-          of {{ pagination.total }}
-        </span>
-        <button
-          @click="goToNextPage"
-          :disabled="pagination.skip + pagination.limit >= pagination.total || loading"
-          class="btn-pag"
-        >
-          Next →
-        </button>
+        <!-- Amount + balance -->
+        <div class="text-right">
+          <p
+            class="text-sm font-bold tabular-nums"
+            :class="isCredit(tx.type) ? 'text-emerald-600' : 'text-red-500'"
+          >
+            {{ isCredit(tx.type) ? '+' : '−' }}{{ tx.amount.toLocaleString('vi-VN') }} SC
+          </p>
+          <p class="text-xs text-slate-400 tabular-nums mt-0.5">
+            Còn: {{ tx.balance_after.toLocaleString('vi-VN') }} SC
+          </p>
+        </div>
       </div>
+    </div>
+
+    <!-- Pagination -->
+    <div
+      v-if="pagination.total > pagination.limit"
+      class="flex items-center justify-between pt-4 mt-2 border-t border-slate-100"
+    >
+      <button
+        @click="goToPreviousPage"
+        :disabled="pagination.skip === 0 || loading"
+        class="text-sm text-slate-600 hover:text-blue-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        ← Trước
+      </button>
+      <span class="text-xs text-slate-400">
+        {{ pagination.skip + 1 }}–{{ Math.min(pagination.skip + pagination.limit, pagination.total) }}
+        / {{ pagination.total }}
+      </span>
+      <button
+        @click="goToNextPage"
+        :disabled="pagination.skip + pagination.limit >= pagination.total || loading"
+        class="text-sm text-slate-600 hover:text-blue-700 font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+      >
+        Tiếp →
+      </button>
     </div>
   </div>
 </template>
@@ -77,41 +86,41 @@ import { useWalletStore } from '@/stores/wallet'
 const walletStore = useWalletStore()
 
 const transactions = computed(() => walletStore.transactions)
-const loading = computed(() => walletStore.loading)
-const pagination = computed(() => walletStore.pagination)
+const loading      = computed(() => walletStore.loading)
+const pagination   = computed(() => walletStore.pagination)
 
-const formatDate = (dateString) => {
-  const date = new Date(dateString)
-  return date.toLocaleString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+const CREDIT_TYPES = ['TOP_UP', 'CLAIM_PAYOUT', 'CREDIT', 'REFUND']
+
+const isCredit = (type) => CREDIT_TYPES.includes(type)
+
+const TX_CONFIG = {
+  TOP_UP:       { icon: '💰', bg: 'bg-emerald-50' },
+  PURCHASE:     { icon: '🛡️', bg: 'bg-blue-50'    },
+  CLAIM_PAYOUT: { icon: '💵', bg: 'bg-emerald-50' },
+  REFUND:       { icon: '↩️', bg: 'bg-amber-50'   },
+  CREDIT:       { icon: '✨', bg: 'bg-emerald-50' },
+  DEDUCT:       { icon: '➖', bg: 'bg-red-50'      },
 }
+
+const txIcon   = (type) => TX_CONFIG[type]?.icon ?? '💳'
+const txIconBg = (type) => TX_CONFIG[type]?.bg   ?? 'bg-slate-50'
+
+const formatDate = (dateString) =>
+  new Date(dateString).toLocaleString('vi-VN', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
 
 const formatTransactionType = (type) => {
-  const typeMap = {
-    TOP_UP: 'Top-Up',
-    PURCHASE: 'Purchase',
-    CLAIM_PAYOUT: 'Claim Payout',
-    REFUND: 'Refund',
-    CREDIT: 'Credit',
-    DEDUCT: 'Deduction'
+  const map = {
+    TOP_UP:       'Nạp tiền',
+    PURCHASE:     'Mua bảo hiểm',
+    CLAIM_PAYOUT: 'Bồi thường',
+    REFUND:       'Hoàn tiền',
+    CREDIT:       'Cộng tiền',
+    DEDUCT:       'Trừ tiền',
   }
-  return typeMap[type] || type
-}
-
-const getAmountSign = (type) => {
-  const creditTypes = ['TOP_UP', 'CLAIM_PAYOUT', 'CREDIT', 'REFUND']
-  return creditTypes.includes(type) ? '+' : '-'
-}
-
-const getAmountClass = (type) => {
-  const creditTypes = ['TOP_UP', 'CLAIM_PAYOUT', 'CREDIT', 'REFUND']
-  return creditTypes.includes(type) ? 'credit' : 'debit'
+  return map[type] || type
 }
 
 const goToPreviousPage = async () => {
@@ -124,189 +133,3 @@ const goToNextPage = async () => {
   await walletStore.fetchTransactions(newSkip, pagination.value.limit)
 }
 </script>
-
-<style scoped>
-.transaction-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.loading,
-.empty-state {
-  text-align: center;
-  padding: 30px;
-  color: #999;
-  background: #f9f9f9;
-  border-radius: 8px;
-}
-
-.table-wrapper {
-  overflow-x: auto;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-}
-
-.transactions-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-}
-
-thead {
-  background: #f5f5f5;
-  font-weight: 600;
-}
-
-th {
-  padding: 12px;
-  text-align: left;
-  font-size: 13px;
-  color: #666;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.transaction-row {
-  border-bottom: 1px solid #e0e0e0;
-  transition: background 0.2s;
-}
-
-.transaction-row:hover {
-  background: #fafafa;
-}
-
-td {
-  padding: 12px;
-  font-size: 14px;
-}
-
-.date {
-  color: #666;
-  font-size: 13px;
-  white-space: nowrap;
-}
-
-.type {
-  min-width: 100px;
-}
-
-.badge {
-  display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.badge-top_up {
-  background: #d4edda;
-  color: #155724;
-}
-
-.badge-purchase {
-  background: #cce5ff;
-  color: #004085;
-}
-
-.badge-claim_payout {
-  background: #d4edda;
-  color: #155724;
-}
-
-.badge-refund {
-  background: #d4edda;
-  color: #155724;
-}
-
-.badge-credit {
-  background: #d4edda;
-  color: #155724;
-}
-
-.badge-deduct {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.amount {
-  font-weight: 600;
-  min-width: 80px;
-}
-
-.amount.credit {
-  color: #28a745;
-}
-
-.amount.debit {
-  color: #dc3545;
-}
-
-.balance {
-  font-weight: 500;
-  color: #667eea;
-  min-width: 100px;
-}
-
-.description {
-  color: #999;
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 15px;
-  padding: 15px;
-}
-
-.btn-pag {
-  padding: 8px 16px;
-  background: #f0f0f0;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: all 0.3s;
-}
-
-.btn-pag:hover:not(:disabled) {
-  background: #667eea;
-  color: white;
-  border-color: #667eea;
-}
-
-.btn-pag:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.page-info {
-  font-size: 14px;
-  color: #666;
-  font-weight: 500;
-}
-
-@media (max-width: 768px) {
-  .table-wrapper {
-    font-size: 12px;
-  }
-
-  th,
-  td {
-    padding: 8px;
-  }
-
-  .description {
-    display: none;
-  }
-
-  .pagination {
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-}
-</style>

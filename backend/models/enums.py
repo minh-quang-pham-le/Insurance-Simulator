@@ -27,9 +27,6 @@ class TransactionType(str, enum.Enum):
 class ProductCategory(str, enum.Enum):
     FLIGHT_DELAY = "FLIGHT_DELAY"
     CROP_WEATHER = "CROP_WEATHER"
-    GADGET = "GADGET"
-    NATURAL_DISASTER = "NATURAL_DISASTER"
-    RAINFALL_EVENT = "RAINFALL_EVENT"
 
 
 class PolicyStatus(str, enum.Enum):

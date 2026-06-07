@@ -1,7 +1,37 @@
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config.settings import settings
+
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    from services.trigger_monitor import run_trigger_check
+
+    scheduler = AsyncIOScheduler()
+    scheduler.add_job(
+        run_trigger_check,
+        "interval",
+        minutes=settings.TRIGGER_CHECK_INTERVAL_MINUTES,
+        id="trigger_check",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info(
+        f"Trigger monitor started — interval: {settings.TRIGGER_CHECK_INTERVAL_MINUTES}m"
+    )
+
+    yield
+
+    scheduler.shutdown(wait=False)
+    logger.info("Trigger monitor stopped")
+
 
 app = FastAPI(
     title=settings.APP_TITLE,
@@ -9,6 +39,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # CORS — allow both frontend apps
@@ -42,3 +73,6 @@ app.include_router(chatbot.router, prefix="/api/v1/chat", tags=["Chatbot"])
 
 from routers import simulation
 app.include_router(simulation.router, prefix="/api/v1/simulation", tags=["Simulation"])
+
+from routers import monitor
+app.include_router(monitor.router, prefix="/api/v1/monitor", tags=["Monitor"])

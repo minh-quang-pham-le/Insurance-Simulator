@@ -111,6 +111,18 @@ export const useAdminStore = defineStore('admin', () => {
     }
   }
 
+  const toggleUserStatus = async (userId) => {
+    const updated = await adminService.toggleUserStatus(userId)
+    const idx = users.value.findIndex(u => u.id === userId)
+    if (idx !== -1) users.value[idx] = updated
+  }
+
+  const deleteUser = async (userId) => {
+    await adminService.deleteUser(userId)
+    users.value = users.value.filter(u => u.id !== userId)
+    usersTotal.value = Math.max(0, usersTotal.value - 1)
+  }
+
   return {
     dashboardMetrics,
     isLoadingDashboard,
@@ -133,5 +145,7 @@ export const useAdminStore = defineStore('admin', () => {
     reviewClaim,
     fetchKycPending,
     reviewKyc,
+    toggleUserStatus,
+    deleteUser,
   }
 })

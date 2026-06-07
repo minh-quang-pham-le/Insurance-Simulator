@@ -66,4 +66,3 @@ class RiskAnalyticsResponse(BaseModel):
     category_stats: List[CategoryRiskStats] = []
     monthly_trends: List[MonthlyTrend] = []
     region_stats: List[RegionRiskData] = []
-    ml_models_status: str = "unavailable"

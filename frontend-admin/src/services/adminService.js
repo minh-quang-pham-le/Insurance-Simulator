@@ -68,6 +68,21 @@ const adminService = {
   },
 
   /**
+   * Toggle user is_active (disable / enable)
+   */
+  async toggleUserStatus(userId) {
+    const { data } = await api.patch(`/admin/users/${userId}/toggle-status`)
+    return data
+  },
+
+  /**
+   * Xóa vĩnh viễn tài khoản user
+   */
+  async deleteUser(userId) {
+    await api.delete(`/admin/users/${userId}`)
+  },
+
+  /**
    * Lấy risk analytics data
    */
   async getRiskAnalytics() {
@@ -75,21 +90,6 @@ const adminService = {
     return data
   },
 
-  /**
-   * Lấy ML model stats
-   */
-  async getMlStats() {
-    const { data } = await api.get('/admin/ml/model-stats')
-    return data
-  },
-
-  /**
-   * Retrain ML models
-   */
-  async retrainModels() {
-    const { data } = await api.post('/admin/ml/retrain')
-    return data
-  },
 }
 
 export default adminService

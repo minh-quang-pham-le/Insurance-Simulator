@@ -1,108 +1,146 @@
 <template>
-  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <h1 class="text-3xl font-extrabold text-gray-900 mb-6">Tổng Quan Tài Khoản</h1>
+  <div class="min-h-screen bg-slate-50">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
-      <div class="flex justify-between items-center mb-6">
-        <h2 class="text-xl font-bold text-gray-800">Hồ sơ cá nhân</h2>
-        <span
-          class="px-4 py-1.5 rounded-full text-sm font-bold uppercase tracking-wide border"
-          :class="{
-            'bg-green-50 text-green-700 border-green-200': authStore.user?.kyc_status === 'VERIFIED',
-            'bg-yellow-50 text-yellow-700 border-yellow-200': authStore.user?.kyc_status === 'PENDING',
-            'bg-red-50 text-red-700 border-red-200': authStore.user?.kyc_status === 'REJECTED',
-            'bg-gray-50 text-gray-700 border-gray-200': authStore.user?.kyc_status === 'NOT_SUBMITTED'
-          }"
+      <!-- Welcome -->
+      <div>
+        <h1 class="text-2xl font-extrabold text-slate-900 tracking-tight">
+          Xin chào, {{ firstName }} 👋
+        </h1>
+        <p class="text-slate-500 text-sm mt-0.5">Đây là tổng quan tài khoản của bạn.</p>
+      </div>
+
+      <!-- KYC banner -->
+      <div
+        v-if="authStore.user?.kyc_status !== 'VERIFIED'"
+        class="bg-amber-50 border border-amber-200 rounded-2xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
+      >
+        <div>
+          <p class="font-bold text-amber-900 text-sm mb-1">⚠️ Xác minh danh tính (KYC) chưa hoàn thành</p>
+          <p class="text-amber-700 text-sm">Hoàn thành KYC để nạp tiền và mua bảo hiểm.</p>
+        </div>
+        <router-link
+          to="/kyc"
+          class="whitespace-nowrap bg-amber-500 hover:bg-amber-600 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition-colors"
         >
-          KYC: {{ formatKycStatus(authStore.user?.kyc_status) }}
-        </span>
+          Xác minh ngay →
+        </router-link>
       </div>
-      
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-          <p class="text-gray-500 text-sm mb-1">Họ và tên</p>
-          <p class="font-bold text-gray-900 text-lg">{{ authStore.user?.full_name }}</p>
-        </div>
-        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-          <p class="text-gray-500 text-sm mb-1">Email</p>
-          <p class="font-bold text-gray-900 text-lg">{{ authStore.user?.email }}</p>
-        </div>
-        <div class="bg-gray-50 p-4 rounded-xl border border-gray-100">
-          <p class="text-gray-500 text-sm mb-1">Số điện thoại</p>
-          <p class="font-bold text-gray-900 text-lg">{{ authStore.user?.phone_number || 'Chưa cung cấp' }}</p>
-        </div>
+      <div
+        v-else
+        class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3"
+      >
+        <span class="text-emerald-500 text-lg font-bold">✓</span>
+        <p class="text-emerald-800 text-sm font-medium">
+          Tài khoản đã xác minh — toàn bộ tính năng đã được mở khoá.
+        </p>
       </div>
 
-      <div class="mt-6">
-        <div v-if="authStore.user?.kyc_status !== 'VERIFIED'" class="bg-blue-50 border border-blue-200 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <p class="text-blue-900 text-sm">
-            <strong class="font-bold text-base block mb-1">⚠️ Quan trọng:</strong> 
-            Bạn cần hoàn thành xác minh danh tính (KYC) để sử dụng chức năng nạp tiền và mua bảo hiểm.
-          </p>
-          <router-link to="/kyc" class="whitespace-nowrap bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition shadow-sm">
-            Xác minh ngay
-          </router-link>
-        </div>
-        <div v-else class="bg-green-50 border border-green-200 rounded-xl p-4">
-          <p class="text-green-800 font-medium">
-            ✓ Chúc mừng! Tài khoản của bạn đã được xác minh toàn bộ tính năng.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-      <div class="bg-blue-600 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
-        <div class="relative z-10">
-          <p class="text-blue-100 font-medium mb-1">Số dư khả dụng</p>
-          <h2 class="text-4xl font-black mb-4">
-            <span v-if="walletStore.isLoading">...</span>
-            <span v-else>{{ walletStore.balance }} SC</span>
-          </h2>
-          <div class="flex gap-3">
+      <!-- Stats row -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <!-- Balance -->
+        <div
+          class="bg-gradient-to-br from-blue-700 to-blue-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden"
+        >
+          <div class="relative z-10">
+            <p class="text-blue-200 text-xs font-semibold uppercase tracking-wider mb-2">
+              Số dư khả dụng
+            </p>
+            <div class="flex items-baseline gap-2 mb-4">
+              <span class="text-4xl font-black tabular-nums">
+                {{ walletStore.isLoading ? '···' : walletStore.balance.toLocaleString('vi-VN') }}
+              </span>
+              <span class="text-lg font-bold text-blue-200">SC</span>
+            </div>
             <router-link
               v-if="authStore.user?.kyc_status === 'VERIFIED'"
               to="/wallet"
-              class="bg-white text-blue-600 px-5 py-2 rounded-lg font-bold text-sm hover:bg-blue-50 transition-colors shadow"
+              class="inline-block bg-white text-blue-700 hover:bg-blue-50 font-bold px-4 py-2 rounded-xl text-sm transition-colors"
             >
-              Nạp Tiền
+              Nạp tiền →
             </router-link>
-            <button 
-              v-else 
-              disabled 
-              class="bg-blue-400 text-blue-100 px-5 py-2 rounded-lg font-bold text-sm cursor-not-allowed"
+            <span
+              v-else
+              class="inline-block bg-blue-400/30 text-blue-100 px-4 py-2 rounded-xl text-sm font-semibold cursor-not-allowed"
             >
-              Nạp Tiền (Cần KYC)
-            </button>
+              Cần KYC để nạp tiền
+            </span>
           </div>
+          <div class="absolute -right-3 -bottom-3 text-[6rem] opacity-10 select-none">🪙</div>
         </div>
-        <div class="absolute -right-6 -bottom-6 opacity-20 text-9xl">💰</div>
+
+        <!-- Active policies -->
+        <div
+          class="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between"
+        >
+          <div class="flex items-start justify-between">
+            <div>
+              <p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+                Đang bảo vệ
+              </p>
+              <p class="text-4xl font-black text-slate-900 tabular-nums">
+                {{ activePoliciesCount }}
+              </p>
+              <p class="text-slate-400 text-sm mt-1">hợp đồng đang hoạt động</p>
+            </div>
+            <div
+              class="w-12 h-12 bg-blue-50 rounded-xl flex items-center justify-center text-2xl flex-shrink-0"
+            >
+              🛡️
+            </div>
+          </div>
+          <router-link
+            to="/my-policies"
+            class="mt-4 text-sm text-blue-600 font-bold hover:text-blue-700 transition-colors"
+          >
+            Xem tất cả hợp đồng →
+          </router-link>
+        </div>
       </div>
 
-      <div class="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm flex flex-col justify-center">
-        <div class="flex justify-between items-start">
-          <div>
-            <p class="text-gray-500 font-medium mb-1">Hợp đồng đang bảo vệ</p>
-            <h2 class="text-4xl font-black text-gray-900">
-              {{ activePoliciesCount }}
-            </h2>
+      <!-- Profile -->
+      <div class="bg-white rounded-2xl border border-slate-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-base font-bold text-slate-900">Hồ sơ cá nhân</h2>
+          <span
+            class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border"
+            :class="kycChip"
+          >
+            {{ formatKycStatus(authStore.user?.kyc_status) }}
+          </span>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <p class="text-slate-400 text-xs mb-1">Họ và tên</p>
+            <p class="font-bold text-slate-900 text-sm">{{ authStore.user?.full_name }}</p>
           </div>
-          <div class="w-12 h-12 bg-indigo-50 rounded-full flex items-center justify-center text-2xl">
-            🛡️
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <p class="text-slate-400 text-xs mb-1">Email</p>
+            <p class="font-bold text-slate-900 text-sm truncate">{{ authStore.user?.email }}</p>
+          </div>
+          <div class="bg-slate-50 p-4 rounded-xl border border-slate-100">
+            <p class="text-slate-400 text-xs mb-1">Số điện thoại</p>
+            <p class="font-bold text-slate-900 text-sm">
+              {{ authStore.user?.phone_number || 'Chưa cung cấp' }}
+            </p>
           </div>
         </div>
-        <router-link to="/my-policies" class="mt-4 text-sm text-indigo-600 font-bold hover:underline inline-block">
-          Xem tất cả hợp đồng →
+      </div>
+
+      <!-- CTA -->
+      <div class="bg-gradient-to-br from-blue-600 to-indigo-700 rounded-2xl p-8 text-center text-white">
+        <h2 class="text-xl font-extrabold mb-2">Bạn muốn bảo vệ điều gì?</h2>
+        <p class="text-blue-100 text-sm mb-5">
+          AI tính toán rủi ro và chi trả tự động khi sự kiện xảy ra — không cần khai báo thủ công.
+        </p>
+        <router-link
+          to="/insurance"
+          class="inline-block bg-white text-blue-700 hover:bg-blue-50 font-bold px-7 py-3 rounded-xl transition-all hover:scale-105 text-sm shadow-md"
+        >
+          Khám Phá Danh Mục Bảo Hiểm →
         </router-link>
       </div>
-    </div>
 
-    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-8 text-center mt-8">
-      <h2 class="text-2xl font-bold text-indigo-900 mb-3">Bạn đang cần bảo vệ điều gì?</h2>
-      <p class="text-indigo-700 mb-6">Hệ thống AI của chúng tôi sẽ tính toán rủi ro và đền bù tự động cho bạn ngay khi sự kiện xảy ra.</p>
-      <router-link to="/insurance" class="inline-block bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-8 py-3.5 rounded-xl transition-transform hover:scale-105 shadow-md text-lg">
-        Khám Phá Danh Mục Bảo Hiểm
-      </router-link>
     </div>
   </div>
 </template>
@@ -118,25 +156,38 @@ const walletStore = useWalletStore()
 const policyStore = usePolicyStore()
 
 onMounted(() => {
-  // Chỉ gọi lấy ví và policy nếu user đã đăng nhập
   if (authStore.accessToken) {
     if (walletStore.fetchBalance) walletStore.fetchBalance()
     if (policyStore.fetchMyPolicies) policyStore.fetchMyPolicies()
   }
 })
 
+const firstName = computed(() => {
+  const name = authStore.user?.full_name
+  if (!name) return 'bạn'
+  return name.split(' ').pop()
+})
+
 const activePoliciesCount = computed(() => {
   if (!policyStore.myPolicies) return 0
-  return policyStore.myPolicies.filter(p => p.status === 'ACTIVE').length
+  return policyStore.myPolicies.filter((p) => p.status === 'ACTIVE').length
+})
+
+const kycChip = computed(() => {
+  const s = authStore.user?.kyc_status
+  if (s === 'VERIFIED') return 'bg-emerald-100 text-emerald-700 border-emerald-200'
+  if (s === 'PENDING')  return 'bg-amber-100 text-amber-700 border-amber-200'
+  if (s === 'REJECTED') return 'bg-red-100 text-red-700 border-red-200'
+  return 'bg-slate-100 text-slate-600 border-slate-200'
 })
 
 const formatKycStatus = (status) => {
   const map = {
-    'VERIFIED': 'Đã Xác Minh',
-    'PENDING': 'Đang Chờ Duyệt',
-    'NOT_SUBMITTED': 'Chưa Xác Minh',
-    'REJECTED': 'Bị Từ Chối'
+    VERIFIED:      'Đã Xác Minh',
+    PENDING:       'Đang Chờ Duyệt',
+    NOT_SUBMITTED: 'Chưa Xác Minh',
+    REJECTED:      'Bị Từ Chối',
   }
-  return map[status] || 'Không Xác Định'
+  return map[status] || 'Không xác định'
 }
 </script>

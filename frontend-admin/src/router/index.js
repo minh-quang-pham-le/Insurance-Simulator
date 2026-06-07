@@ -60,6 +60,12 @@ const routes = [
     component: () => import('../views/RiskAnalyticsView.vue'),
     meta: { requiresAuth: true }
   },
+  {
+    path: '/api-monitor',
+    name: 'admin-api-monitor',
+    component: () => import('../views/ApiMonitorView.vue'),
+    meta: { requiresAuth: true }
+  },
 ]
 
 const router = createRouter({

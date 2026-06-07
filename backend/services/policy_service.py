@@ -17,56 +17,47 @@ from models.enums import KycStatus, PolicyStatus
 from schemas.policy import PremiumCalculateResponse
 from services.wallet_service import WalletService
 from services.risk_engine import get_risk_engine
+from config.settings import settings
 
 logger = logging.getLogger(__name__)
 
-def calculate_premium_logic(
-    db: Session, 
-    product_id: UUID, 
-    parameters: Dict[str, Any], 
-    duration_days: int
+
+async def calculate_premium_logic(
+    db: Session,
+    product_id: UUID,
+    parameters: Dict[str, Any],
+    duration_days: int,
 ) -> PremiumCalculateResponse:
     """
-    Tính toán phí bảo hiểm dựa trên mô hình ML.
-    Hàm này được dùng chung cho cả tính năng "Preview" và lúc "Purchase" thực tế.
+    Tính toán phí bảo hiểm. Dùng live OWM forecast cho weather products
+    khi có API key; fallback về CSV nếu không.
     """
     product = db.query(InsuranceProduct).filter(InsuranceProduct.id == product_id).first()
     if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Insurance product not found"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Insurance product not found")
+
     if not product.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This insurance product is no longer active"
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This insurance product is no longer active")
 
     if duration_days < product.min_duration_days or duration_days > product.max_duration_days:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Duration must be between {product.min_duration_days} and {product.max_duration_days} days"
+            detail=f"Duration must be between {product.min_duration_days} and {product.max_duration_days} days",
         )
 
-    # Lấy ML Engine
     engine = get_risk_engine()
-    
-    # Map category sang tên model (VD: FLIGHT_DELAY -> flight_delay)
     model_product_id = product.category.value.lower()
-    
-    # Tính base_price: Payout * (1 + risk_margin) * (duration / 30)
-    # Đây là công thức cơ sở trước khi nhân với hệ số rủi ro của ML
+
     duration_factor = Decimal(duration_days) / Decimal(30.0)
     base_price = float(product.base_payout) * (1.0 + float(product.risk_margin)) * float(duration_factor)
-    
-    # Gọi ML Risk Engine
-    ml_result = engine.calculate_premium(
+
+    ml_result = await engine.calculate_premium_async(
         product_id=model_product_id,
         base_price=base_price,
-        features=parameters
+        features=parameters,
+        api_key=settings.OPENWEATHERMAP_API_KEY,
     )
-    
+
     final_premium = Decimal(str(round(ml_result["final_premium"], 2)))
 
     return PremiumCalculateResponse(
@@ -76,7 +67,7 @@ def calculate_premium_logic(
         payout_amount=product.base_payout,
         duration_days=duration_days,
         risk_score=ml_result["event_probability_pct"],
-        breakdown=ml_result
+        breakdown=ml_result,
     )
 
 
@@ -106,7 +97,7 @@ async def purchase_policy(
         )
 
     # 2. Tính lại giá trị thực tế
-    calc_result = calculate_premium_logic(db, product_id, parameters, duration_days)
+    calc_result = await calculate_premium_logic(db, product_id, parameters, duration_days)
     
     # Tính toán thời hạn
     start_date = datetime.now(timezone.utc)

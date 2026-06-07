@@ -192,15 +192,12 @@ All wallet operations create a `WalletTransaction` record for audit trail. Balan
 
 Products are **micro-insurance**: short-term, small-premium, specific-trigger. Each product is defined by a **JSON parameter schema** (what inputs the user must provide) and **trigger conditions** (when the auto-claim fires).
 
-**Five initial product types:**
+**Two product types:**
 
 | # | Product | Trigger Type | External API |
 |---|---------|-------------|--------------|
 | 1 | Flight Delay Protection | Flight delayed ≥ threshold or cancelled | AviationStack |
-| 2 | Crop Weather Insurance | Weather metric exceeds threshold | OpenWeatherMap |
-| 3 | Gadget Repair Coverage | Manual claim with evidence (non-parametric) | None |
-| 4 | Typhoon / Natural Disaster Insurance | Severe weather alert ≥ threshold | OpenWeatherMap |
-| 5 | Rainfall Event Insurance | Rainfall on specific date > threshold | OpenWeatherMap |
+| 2 | Weather Insurance | Weather metric exceeds threshold at user's location | OpenWeatherMap (live 5-day forecast) |
 
 Admins create new products by uploading a JSON configuration file that defines the parameter schema and trigger conditions. The system renders forms dynamically from the schema. See [Section 5](#5-insurance-products) for detailed product definitions.
 
@@ -220,17 +217,17 @@ Admins create new products by uploading a JSON configuration file that defines t
 
 **Premium calculation formula:**
 ```
-event_probability = historical_events / total_observations
-adjusted_probability = event_probability × season_factor × location_factor
-base_premium = adjusted_probability × payout_amount × (1 + risk_margin)
-daily_rate = base_premium / base_observation_period_days
-policy_premium = daily_rate × policy_duration_days
+base_price        = base_payout × (1 + risk_margin) × (duration_days / 30)
+event_probability = empirical P(trigger condition) from historical CSV data
+risk_multiplier   = 0.5 + (event_probability × 1.5)   → range [0.5, 2.0]
+final_premium     = base_price × risk_multiplier
 ```
 
 Where:
 - `risk_margin`: Company profit margin (default 25%, configurable per product)
-- `season_factor`: 0.5–3.0 based on time of year (e.g., typhoon season = higher)
-- `location_factor`: 0.5–2.0 based on geographic risk
+- `event_probability`: computed per-product from `ml_data/` CSV files:
+  - **FLIGHT_DELAY**: per-airline disruption rate (cancelled + arrival delay > 30 min), adjusted for user's `delay_threshold_minutes`
+  - **CROP_WEATHER**: empirical P(weather_metric comparison threshold) from daily weather data
 
 **Acceptance criteria:**
 - [ ] Purchase is blocked if user's KYC is not VERIFIED
@@ -260,7 +257,6 @@ Background job (every 5–15 min)
 - [ ] Active parametric policies are checked automatically on schedule
 - [ ] When trigger fires, claim is created and wallet is credited within one check cycle
 - [ ] User receives notification of claim payout
-- [ ] Non-parametric products (gadget) require manual claim submission
 
 ### 4.6 AI Chatbot (Insurance Advisor)
 
@@ -296,15 +292,20 @@ Rules:
 - [ ] Chat history persists within a session
 - [ ] Graceful fallback if LLM API is unavailable
 
-### 4.7 AI Risk Probability Engine
+### 4.7 Risk Probability Engine
 
-Calculates and displays event probabilities based on historical data.
+Calculates and displays event probabilities based on historical CSV data.
+
+**Data sources:**
+- `ml_data/vietnam_airlines_flights.csv` — 232 Vietnam Airlines flights with status and timestamps
+- `ml_data/weather_data.csv` — 224 daily weather observations (Hanoi, Ho Chi Minh City, Da Nang)
 
 **Data flow:**
 ```
-Historical event data (seeded + API-collected)
-  → Statistical calculation per product/region/season
-  → Risk score (1–10 for users, detailed % for admins)
+ml_data/ CSV files loaded at backend startup → RiskEngine singleton
+  → FLIGHT_DELAY: per-airline disruption rate, adjusted for delay threshold
+  → CROP_WEATHER: empirical P(metric comparison threshold) from daily data
+  → risk_multiplier = 0.5 + (probability × 1.5) → range [0.5, 2.0]
   → Feeds into: premium calculation, chatbot context, simulation engine
 ```
 
@@ -337,9 +338,7 @@ Opens as a modal or expandable panel within the Insurance Detail page.
 
 - **Sliders** for each trigger parameter, generated from the product's `parameters_schema`
   - Flight Delay: delay minutes slider (0–360 min), with threshold line at user-chosen threshold
-  - Crop Weather: rainfall mm slider (0–200 mm), temperature slider, etc.
-  - Typhoon: severity level slider (1–5)
-  - Rainfall Event: rainfall mm slider for event day
+  - Weather Insurance: rainfall mm slider (0–200 mm) or temperature slider, depending on selected `weather_metric`
 - **Threshold visualization**: slider track has colored zones — green (safe) → yellow (approaching, 80% of threshold) → red (triggered)
 - **When parameter crosses threshold**: animated popup notification — *"Insurance Activated! Your policy pays out 500 SC"*
 - **All trigger scenarios listed**: for products with multiple triggers (e.g., Flight Delay has "delay ≥ 120min" AND "cancelled"), each scenario is shown as a separate threshold on the slider or as tabs
@@ -352,10 +351,7 @@ A mini visual story for each product category, driven by the slider values:
 | Product | Animation |
 |---------|-----------|
 | Flight Delay | Airplane icon at gate, clock ticking up. As delay slider increases: clock turns yellow, then red. At threshold: "DELAYED" stamp, payout animation. At cancellation: "CANCELLED" stamp with higher payout. |
-| Crop Weather | Farm/field scene with weather indicators. Slider controls rain intensity or temperature. Clouds darken, rain increases. At threshold: flood/drought visual, farmer receives payout. |
-| Typhoon | Map of Vietnam with storm icon. Severity slider controls storm size/color. At threshold: alert banner, payout credited. At max severity: double payout animation. |
-| Rainfall Event | Outdoor event scene (wedding/festival). Rain slider controls clouds and rainfall. At threshold: event disrupted visual, payout notification. |
-| Gadget | Device with damage indicator. Shows claim submission flow instead (since non-parametric): take photo → submit → admin reviews → payout. |
+| Weather Insurance | Weather scene with location indicators. Slider controls rain intensity or temperature. Clouds darken, rain increases. At threshold: flood/storm visual, user receives payout. |
 
 These animations are CSS/SVG-based, lightweight, and educational. They make the abstract concept of "parametric trigger" concrete and visually engaging.
 
@@ -371,7 +367,7 @@ These animations are CSS/SVG-based, lightweight, and educational. They make the 
 | Event | Notification |
 |-------|-------------|
 | Claim auto-triggered | "Your Flight Delay policy was triggered! **500 SC** has been credited to your wallet." |
-| Policy expiring (24h before) | "Your Crop Weather policy expires tomorrow." |
+| Policy expiring (24h before) | "Your Weather Insurance policy expires tomorrow." |
 | Policy expired (no claim) | "Your policy has expired with no claim triggered." |
 | Payout received | "You received a payout of **X SC**." |
 | System announcement | Admin broadcasts (maintenance, new products, etc.) |
@@ -399,7 +395,7 @@ Notifications are stored in DB and displayed as a bell icon with unread count in
 
 **Claims Monitor:**
 - List of all claims (filterable by status, product, date)
-- Manual approval/rejection for non-parametric claims (gadget)
+- All claims are auto-approved (parametric trigger only)
 
 **Risk Analytics:**
 - Probability tables and charts per product
@@ -449,30 +445,22 @@ Notifications are stored in DB and displayed as a bell icon with unread count in
 }
 ```
 
-### 5.2 Crop Weather Insurance
+### 5.2 Weather Insurance
 
 ```json
 {
-  "name": "Crop Weather Insurance",
+  "name": "Weather Insurance",
   "category": "CROP_WEATHER",
-  "description": "Protect your harvest against extreme weather conditions. Automatic payout when weather thresholds are breached.",
+  "description": "Get automatic payout when weather conditions at your location exceed your chosen threshold. Powered by real-time OpenWeatherMap data.",
   "parameters_schema": {
     "fields": [
-      {"name": "location_name", "type": "string", "label": "Farm Location", "required": true, "placeholder": "e.g., Can Tho, Mekong Delta"},
+      {"name": "location_name", "type": "string", "label": "Location", "required": true, "placeholder": "e.g., Hanoi, Ho Chi Minh City"},
       {"name": "location_lat", "type": "number", "label": "Latitude", "required": true},
       {"name": "location_lon", "type": "number", "label": "Longitude", "required": true},
-      {"name": "crop_type", "type": "select", "label": "Crop Type", "required": true,
+      {"name": "weather_metric", "type": "select", "label": "Weather Metric", "required": true,
        "options": [
-         {"value": "rice", "label": "Rice"},
-         {"value": "coffee", "label": "Coffee"},
-         {"value": "pepper", "label": "Pepper"},
-         {"value": "cashew", "label": "Cashew"}
-       ]},
-      {"name": "weather_metric", "type": "select", "label": "Weather Risk", "required": true,
-       "options": [
-         {"value": "rainfall_mm", "label": "Excessive Rainfall (flood)"},
-         {"value": "temp_celsius", "label": "Extreme Temperature"},
-         {"value": "drought_days", "label": "Drought (no rain for X days)"}
+         {"value": "rainfall_mm", "label": "Rainfall (mm)"},
+         {"value": "temp_celsius", "label": "Temperature (°C)"}
        ]},
       {"name": "threshold", "type": "number", "label": "Trigger Threshold", "required": true},
       {"name": "comparison", "type": "select", "label": "Trigger When", "required": true,
@@ -496,111 +484,12 @@ Notifications are stored in DB and displayed as a bell icon with unread count in
 }
 ```
 
-### 5.3 Gadget Repair Coverage (Non-Parametric)
+**Premium calculation**: uses live OWM 5-day/3h forecast (40 data points) to compute `P(metric comparison threshold)` for the exact lat/lon. Falls back to historical CSV when no API key is configured. `model_used: true` in the response indicates live data was used.
 
-```json
-{
-  "name": "Gadget Repair Coverage",
-  "category": "GADGET",
-  "description": "Coverage for accidental damage to your personal devices. Submit a claim with evidence for manual review.",
-  "parameters_schema": {
-    "fields": [
-      {"name": "device_type", "type": "select", "label": "Device Type", "required": true,
-       "options": [
-         {"value": "smartphone", "label": "Smartphone"},
-         {"value": "laptop", "label": "Laptop"},
-         {"value": "tablet", "label": "Tablet"},
-         {"value": "smartwatch", "label": "Smartwatch"}
-       ]},
-      {"name": "brand", "type": "string", "label": "Brand", "required": true},
-      {"name": "model", "type": "string", "label": "Model", "required": true},
-      {"name": "purchase_date", "type": "date", "label": "Device Purchase Date", "required": true},
-      {"name": "coverage_type", "type": "select", "label": "Coverage Type", "required": true,
-       "options": [
-         {"value": "SCREEN_DAMAGE", "label": "Screen Damage"},
-         {"value": "WATER_DAMAGE", "label": "Water Damage"},
-         {"value": "MALFUNCTION", "label": "Hardware Malfunction"},
-         {"value": "ALL_RISK", "label": "All Risks (higher premium)"}
-       ]}
-    ]
-  },
-  "trigger_conditions": {
-    "type": "MANUAL",
-    "requires": ["description", "photo_evidence"],
-    "review": "ADMIN"
-  },
-  "base_payout": 300,
-  "duration_range_days": [30, 365],
-  "risk_margin": 0.35
-}
-```
+### 5.3 ~~Removed products~~
 
-### 5.4 Typhoon / Natural Disaster Insurance
+> Gadget Repair Coverage, Typhoon Insurance, and Rainfall Event Insurance have been removed from the platform scope. Only Flight Delay Protection (5.1) and Weather Insurance (5.2) are active.
 
-```json
-{
-  "name": "Typhoon Insurance",
-  "category": "NATURAL_DISASTER",
-  "description": "Automatic payout when a typhoon or severe weather event meets the alert threshold in your area.",
-  "parameters_schema": {
-    "fields": [
-      {"name": "location_name", "type": "string", "label": "Location", "required": true, "placeholder": "e.g., Da Nang"},
-      {"name": "location_lat", "type": "number", "label": "Latitude", "required": true},
-      {"name": "location_lon", "type": "number", "label": "Longitude", "required": true},
-      {"name": "disaster_type", "type": "select", "label": "Disaster Type", "required": true,
-       "options": [
-         {"value": "TYPHOON", "label": "Typhoon"},
-         {"value": "FLOOD", "label": "Flood"},
-         {"value": "EARTHQUAKE", "label": "Earthquake"}
-       ]},
-      {"name": "severity_threshold", "type": "number", "label": "Minimum Severity Level (1-5)", "required": true, "min": 1, "max": 5, "default": 3}
-    ]
-  },
-  "trigger_conditions": {
-    "type": "PARAMETRIC",
-    "api_source": "openweathermap_alerts",
-    "rules": [
-      {"field": "alert_severity", "operator": ">=", "threshold_param": "severity_threshold", "payout_multiplier": 1.0},
-      {"field": "alert_severity", "operator": ">=", "value": 5, "payout_multiplier": 2.0}
-    ]
-  },
-  "base_payout": 2000,
-  "duration_range_days": [30, 180],
-  "risk_margin": 0.20
-}
-```
-
-### 5.5 Rainfall Event Insurance
-
-```json
-{
-  "name": "Rainfall Event Insurance",
-  "category": "RAINFALL_EVENT",
-  "description": "Protection against rain ruining your outdoor event. Automatic payout if rainfall exceeds threshold on your event date.",
-  "parameters_schema": {
-    "fields": [
-      {"name": "event_name", "type": "string", "label": "Event Name", "required": true, "placeholder": "e.g., Wedding, Festival"},
-      {"name": "location_name", "type": "string", "label": "Location", "required": true},
-      {"name": "location_lat", "type": "number", "label": "Latitude", "required": true},
-      {"name": "location_lon", "type": "number", "label": "Longitude", "required": true},
-      {"name": "event_date", "type": "date", "label": "Event Date", "required": true},
-      {"name": "rainfall_threshold_mm", "type": "number", "label": "Rainfall Threshold (mm)", "required": true, "default": 10, "min": 5, "max": 100}
-    ]
-  },
-  "trigger_conditions": {
-    "type": "PARAMETRIC",
-    "api_source": "openweathermap",
-    "check_on": "event_date",
-    "rules": [
-      {"field": "rainfall_mm", "operator": ">=", "threshold_param": "rainfall_threshold_mm", "payout_multiplier": 1.0},
-      {"field": "rainfall_mm", "operator": ">=", "value": 50, "payout_multiplier": 1.5}
-    ]
-  },
-  "base_payout": 200,
-  "duration_range_days": [1, 3],
-  "risk_margin": 0.20
-}
-```
 
 ---
 
@@ -823,9 +712,6 @@ class TransactionType(str, enum.Enum):
 class ProductCategory(str, enum.Enum):
     FLIGHT_DELAY = "FLIGHT_DELAY"
     CROP_WEATHER = "CROP_WEATHER"
-    GADGET = "GADGET"
-    NATURAL_DISASTER = "NATURAL_DISASTER"
-    RAINFALL_EVENT = "RAINFALL_EVENT"
 
 class PolicyStatus(str, enum.Enum):
     ACTIVE = "ACTIVE"
@@ -1124,7 +1010,8 @@ Insurance-Simulator/
 | httpx | 0.25+ | Async HTTP client (external APIs) |
 | APScheduler | 3.10+ | Background job scheduling (trigger monitor) |
 | google-generativeai | latest | Gemini API (chatbot) |
-| numpy | latest | Risk calculations, Monte Carlo |
+| numpy | latest | Risk calculations |
+| pandas | latest | Historical CSV data loading for risk engine |
 | pytest | 7.4+ | Testing |
 
 ### Frontend (both apps)
