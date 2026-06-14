@@ -203,19 +203,19 @@ Người hoàn thành: (team member names), người check: (reviewer)
 
 ## Phase 3 — Real-World Integration
 
-### Slice 10: External APIs + Trigger Monitor [1-2 members]
+### Slice 10: External APIs + Trigger Monitor [1-2 members] -- DONE
 
-- [ ] **10.1** Create `backend/utils/external_apis.py` — WeatherClient, AviationClient, with logging
-- [ ] **10.2** Create `backend/services/trigger_monitor.py` — background job, mock mode, auto-claims
-- [ ] **10.3** API monitor UI — ApiMonitorView.vue, ApiStatusCard.vue, TriggerLogTable.vue
+- [x] **10.1** Create `backend/utils/external_apis.py` — WeatherClient, AviationClient, with logging
+- [x] **10.2** Create `backend/services/trigger_monitor.py` — background job, mock mode, auto-claims
+- [x] **10.3** API monitor UI — ApiMonitorView.vue (ApiStatusCard + TriggerLogTable inlined in view)
 
 ---
 
 ### Phase 3 Checkpoint
 
-- [ ] External APIs work when keys configured; mock mode otherwise
-- [ ] Auto-claims fire on trigger conditions
-- [ ] API health dashboard shows status per API
+- [x] External APIs work when keys configured; mock mode otherwise
+- [x] Auto-claims fire on trigger conditions
+- [x] API health dashboard shows status per API
 
 ---
 
@@ -223,28 +223,28 @@ Người hoàn thành: (team member names), người check: (reviewer)
 
 ### Slice 11: UI/UX + Animations [1-2 members]
 
-- [ ] **11.1** Visual polish — responsive, loading states, empty states, error toasts
-- [ ] **11.2** Simulation animations — 5 product-specific CSS/SVG animations
+- [x] **11.1** Visual polish — responsive, loading states, empty states, error toasts
+- [x] **11.2** Simulation animations — 5 product-specific CSS/SVG animations
 
 ### Slice 12: Hardening [2 members]
 
-- [ ] **12.1** Global error handler middleware (custom exceptions + structured logging used from Phase 1; this slice adds centralized handler + edge case hardening)
-- [ ] **12.2** Input validation + rate limiting
-- [ ] **12.3** Query optimization (joinedload, pagination)
-- [ ] **12.4** Security review (auth, RBAC, CORS, SQL injection)
+- [x] **12.1** Global error handler middleware (custom exceptions + structured logging used from Phase 1; this slice adds centralized handler + edge case hardening)
+- [x] **12.2** Input validation + rate limiting
+- [x] **12.3** Query optimization (joinedload, pagination)
+- [x] **12.4** Security review (auth, RBAC, CORS, SQL injection)
 
-### Slice 13: Docker + Tests [2 members]
+### Slice 13: Docker + Tests [2 members] -- DONE
 
-- [ ] **13.1** .env files + Docker compose verification
-- [ ] **13.2** Backend test suite (auth, wallet, insurance, policies, claims)
+- [x] **13.1** .env files + Docker compose verification (`docker-compose.yml` + `.env.example` for all 3 services)
+- [x] **13.2** Backend test suite — `test_unit.py` (8 tests), `test_integration.py` (3 tests), `test_acceptance.py` (12 tests), `test_risk_engine.py`, `test_simulation_engine.py`
 
 ---
 
 ### Final Checkpoint
 
-- [ ] All pages responsive on mobile + desktop
-- [ ] Simulation animations for all 5 products
-- [ ] No security vulnerabilities
-- [ ] `docker-compose up` starts full stack from scratch
-- [ ] `pytest` all tests pass
-- [ ] README.md is accurate and up to date
+- [x] All pages responsive on mobile + desktop
+- [x] Simulation animations for all 5 products
+- [x] No security vulnerabilities
+- [x] `docker-compose up` starts full stack from scratch
+- [x] `pytest` all tests pass
+- [x] README.md is accurate and up to date
