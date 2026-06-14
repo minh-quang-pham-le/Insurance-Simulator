@@ -1,89 +1,99 @@
 <template>
-  <div class="mb-5">
-    <div class="flex justify-between items-center mb-1.5">
-      <label class="text-sm font-medium text-gray-700">{{ slider.label }}</label>
-      <span class="text-sm font-bold" :class="valueColor">
-        {{ displayValue }}{{ slider.unit && slider.unit !== 'toggle' && slider.unit !== 'status' ? ` ${slider.unit}` : '' }}
+  <div class="mb-6 last:mb-0">
+    <!-- Label row -->
+    <div class="flex justify-between items-center mb-2.5">
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-semibold text-gray-800">{{ slider.label }}</label>
+        <span v-if="isTriggered" class="text-xs font-bold text-rose-600 bg-rose-100 rounded-full px-2 py-0.5 flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+          Triggered
+        </span>
+      </div>
+      <span class="text-sm font-bold tabular-nums px-2.5 py-1 rounded-lg transition-all" :class="valueColorClass">
+        {{ displayValue }}<span v-if="unitSuffix" class="font-normal ml-0.5 text-xs">{{ unitSuffix }}</span>
       </span>
     </div>
 
-    <!-- Toggle for boolean fields (Yes/No) -->
-    <div v-if="slider.unit === 'toggle'" class="flex items-center gap-3">
+    <!-- Toggle (Yes/No) -->
+    <div v-if="slider.unit === 'toggle'" class="grid grid-cols-2 gap-2">
       <button
         @click="$emit('update:modelValue', 0)"
-        :class="['px-3 py-1.5 rounded-lg text-sm font-medium transition',
-          modelValue === 0 ? 'bg-green-100 text-green-700 ring-2 ring-green-500' : 'bg-gray-100 text-gray-500']"
+        :class="['py-2.5 rounded-xl text-sm font-semibold transition-all border-2', modelValue === 0
+          ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm shadow-emerald-100'
+          : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300']"
       >
         No
       </button>
       <button
         @click="$emit('update:modelValue', 1)"
-        :class="['px-3 py-1.5 rounded-lg text-sm font-medium transition',
-          modelValue === 1 ? 'bg-red-100 text-red-700 ring-2 ring-red-500' : 'bg-gray-100 text-gray-500']"
+        :class="['py-2.5 rounded-xl text-sm font-semibold transition-all border-2', modelValue === 1
+          ? 'bg-rose-500 text-white border-rose-500 shadow-sm shadow-rose-100'
+          : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300']"
       >
         Yes
       </button>
     </div>
 
-    <!-- Direction toggle (Above/Below for Crop Weather) -->
-    <div v-else-if="slider.unit === 'direction'" class="flex items-center gap-3">
+    <!-- Direction toggle -->
+    <div v-else-if="slider.unit === 'direction'" class="grid grid-cols-2 gap-2">
       <button
-        v-for="opt in (slider.options || [{value:0,label:'Above'},{value:1,label:'Below'}])"
+        v-for="opt in (slider.options || [{value:0,label:'Above threshold'},{value:1,label:'Below threshold'}])"
         :key="opt.value"
         @click="$emit('update:modelValue', opt.value)"
-        :class="['px-3 py-1.5 rounded-lg text-sm font-medium transition',
-          modelValue === opt.value ? 'bg-blue-100 text-blue-700 ring-2 ring-blue-500' : 'bg-gray-100 text-gray-500']"
+        :class="['py-2.5 rounded-xl text-sm font-semibold transition-all border-2', modelValue === opt.value
+          ? 'bg-violet-600 text-white border-violet-600 shadow-sm shadow-violet-100'
+          : 'bg-gray-50 text-gray-400 border-gray-200 hover:border-gray-300']"
       >
         {{ opt.label }}
       </button>
     </div>
 
-    <!-- Slider for numeric fields -->
+    <!-- Numeric slider -->
     <div v-else>
-      <div class="relative h-2 bg-gray-200 rounded-full overflow-hidden">
-        <!-- Green zone -->
+      <!-- Track container -->
+      <div class="relative" style="height: 40px; margin: 2px 0;">
+        <!-- Zone background (vertically centered) -->
+        <div class="absolute inset-x-0 rounded-full overflow-hidden" style="height: 12px; top: 50%; transform: translateY(-50%);">
+          <div class="h-full flex">
+            <div class="h-full bg-emerald-300" :style="{ width: greenWidth + '%' }"></div>
+            <div v-if="slider.threshold != null" class="h-full bg-amber-300" :style="{ width: yellowWidth + '%' }"></div>
+            <div class="h-full flex-1" :class="isTriggered ? 'bg-rose-400' : 'bg-rose-300'"></div>
+          </div>
+        </div>
+
+        <!-- Threshold marker line -->
+        <div v-if="effectiveThreshold != null"
+             class="absolute pointer-events-none top-0 bottom-0 z-10"
+             :style="{ left: thresholdPercent + '%' }">
+          <div class="absolute top-0 bottom-0 w-0.5 bg-gray-700/70 left-0"></div>
+        </div>
+
+        <!-- Range input (invisible but interactive) -->
+        <input
+          type="range"
+          :min="slider.min_value"
+          :max="slider.max_value"
+          :step="slider.step"
+          :value="modelValue"
+          @input="$emit('update:modelValue', parseFloat($event.target.value))"
+          class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+        />
+
+        <!-- Custom visible thumb -->
         <div
-          class="absolute h-full bg-green-400 rounded-full"
-          :style="{ width: greenWidth + '%' }"
-        ></div>
-        <!-- Yellow zone -->
-        <div
-          v-if="slider.threshold != null"
-          class="absolute h-full bg-yellow-400"
-          :style="{ left: greenWidth + '%', width: yellowWidth + '%' }"
-        ></div>
-        <!-- Red zone -->
-        <div
-          v-if="slider.threshold != null"
-          class="absolute h-full bg-red-400 rounded-r-full"
-          :style="{ left: (greenWidth + yellowWidth) + '%', width: redWidth + '%' }"
+          class="absolute pointer-events-none z-10 w-5 h-5 rounded-full border-2 border-white shadow-md transition-colors"
+          :class="thumbBgClass"
+          :style="{ left: valuePercent + '%', top: '50%', transform: 'translate(-50%, -50%)' }"
         ></div>
       </div>
 
-      <!-- Threshold marker -->
-      <div v-if="slider.threshold != null" class="relative h-0">
-        <div
-          class="absolute -top-4 w-0.5 h-4 bg-gray-700"
-          :style="{ left: thresholdPercent + '%' }"
-        ></div>
-      </div>
-
-      <input
-        type="range"
-        :min="slider.min_value"
-        :max="slider.max_value"
-        :step="slider.step"
-        :value="modelValue"
-        @input="$emit('update:modelValue', parseFloat($event.target.value))"
-        class="w-full mt-1 accent-blue-600 cursor-pointer"
-      />
-
-      <div class="flex justify-between text-xs text-gray-400 mt-0.5">
-        <span>{{ slider.min_value }}</span>
-        <span v-if="slider.threshold != null" class="text-gray-600 font-medium">
-          Threshold: {{ slider.threshold }}
+      <!-- Scale and threshold label row -->
+      <div class="flex justify-between items-center text-xs mt-0.5">
+        <span class="text-gray-400">{{ slider.min_value }}{{ unitSuffix }}</span>
+        <span v-if="effectiveThreshold != null" class="text-gray-600 font-semibold flex items-center gap-1">
+          <span>⚡</span>Trigger at {{ effectiveThreshold }}{{ unitSuffix }}
         </span>
-        <span>{{ slider.max_value }}</span>
+        <span class="text-gray-400">{{ slider.max_value }}{{ unitSuffix }}</span>
       </div>
     </div>
   </div>
@@ -95,33 +105,41 @@ import { computed } from 'vue'
 const props = defineProps({
   slider: { type: Object, required: true },
   modelValue: { type: Number, required: true },
+  isTriggered: { type: Boolean, default: false },
+  dynamicThreshold: { type: Number, default: null },
 })
 
 defineEmits(['update:modelValue'])
 
+// dynamicThreshold overrides the static threshold baked into slider config
+// (used when threshold is itself a user-controlled slider, e.g. Crop Weather)
+const effectiveThreshold = computed(() =>
+  props.dynamicThreshold !== null && props.dynamicThreshold !== undefined
+    ? props.dynamicThreshold
+    : props.slider.threshold
+)
+
+const unitSuffix = computed(() => {
+  const u = props.slider.unit
+  if (!u || u === 'toggle' || u === 'direction') return ''
+  return ` ${u}`
+})
+
 const range = computed(() => props.slider.max_value - props.slider.min_value)
 
 const thresholdPercent = computed(() => {
-  if (props.slider.threshold == null || range.value === 0) return 50
-  return ((props.slider.threshold - props.slider.min_value) / range.value) * 100
+  if (effectiveThreshold.value == null || range.value === 0) return 50
+  return ((effectiveThreshold.value - props.slider.min_value) / range.value) * 100
 })
 
-// Green: 0 to 80% of threshold
 const greenWidth = computed(() => {
-  if (props.slider.threshold == null) return 100
+  if (effectiveThreshold.value == null) return 100
   return thresholdPercent.value * 0.8
 })
 
-// Yellow: 80% to 100% of threshold
 const yellowWidth = computed(() => {
-  if (props.slider.threshold == null) return 0
+  if (effectiveThreshold.value == null) return 0
   return thresholdPercent.value * 0.2
-})
-
-// Red: threshold to max
-const redWidth = computed(() => {
-  if (props.slider.threshold == null) return 0
-  return 100 - thresholdPercent.value
 })
 
 const valuePercent = computed(() => {
@@ -129,21 +147,38 @@ const valuePercent = computed(() => {
   return ((props.modelValue - props.slider.min_value) / range.value) * 100
 })
 
-const valueColor = computed(() => {
+const isNearThreshold = computed(() => {
+  if (effectiveThreshold.value == null) return false
+  return valuePercent.value >= thresholdPercent.value * 0.8 && valuePercent.value < thresholdPercent.value
+})
+
+const isAboveThreshold = computed(() => {
+  if (effectiveThreshold.value == null) return false
+  return valuePercent.value >= thresholdPercent.value
+})
+
+const thumbBgClass = computed(() => {
+  if (props.slider.unit === 'toggle') return 'bg-gray-400'
+  if (props.slider.unit === 'direction') return 'bg-violet-600'
+  if (props.slider.threshold == null) return 'bg-violet-600'
+  if (isAboveThreshold.value) return 'bg-rose-600'
+  if (isNearThreshold.value) return 'bg-amber-500'
+  return 'bg-emerald-500'
+})
+
+const valueColorClass = computed(() => {
   if (props.slider.unit === 'toggle') {
-    return props.modelValue === 1 ? 'text-red-600' : 'text-green-600'
+    return props.modelValue === 1 ? 'text-rose-700 bg-rose-50' : 'text-emerald-700 bg-emerald-50'
   }
-  if (props.slider.unit === 'direction') return 'text-blue-600'
-  if (props.slider.threshold == null) return 'text-gray-700'
-  if (valuePercent.value >= thresholdPercent.value) return 'text-red-600'
-  if (valuePercent.value >= thresholdPercent.value * 0.8) return 'text-yellow-600'
-  return 'text-green-600'
+  if (props.slider.unit === 'direction') return 'text-violet-700 bg-violet-50'
+  if (props.slider.threshold == null) return 'text-gray-700 bg-gray-100'
+  if (isAboveThreshold.value) return 'text-rose-700 bg-rose-50'
+  if (isNearThreshold.value) return 'text-amber-700 bg-amber-50'
+  return 'text-emerald-700 bg-emerald-50'
 })
 
 const displayValue = computed(() => {
-  if (props.slider.unit === 'toggle') {
-    return props.modelValue === 1 ? 'YES' : 'NO'
-  }
+  if (props.slider.unit === 'toggle') return props.modelValue === 1 ? 'Yes' : 'No'
   if (props.slider.unit === 'direction') {
     const opts = props.slider.options || []
     const match = opts.find(o => o.value === props.modelValue)

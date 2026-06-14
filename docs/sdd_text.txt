@@ -1,0 +1,942 @@
+--- PAGE 1 ---
+HANOI UNIVERSITY OF SCIENCE AND TECHNOLOGY
+School of Information and Communication Technology
+Software Design Document (SDD)
+AI-POWERED INSURANCE SIMULATOR
+Introduction to Software Engineering
+Group Bòng
+Nguyễn Hoàng Thái - 20235557
+Đặng Xuân Đạt - 20235485
+Phạm Lê Minh Quang - 20235554
+Phạm Ngọc Thạch - 20235556
+Nguyễn Thành Vinh - 20235576
+Ha Noi, June 2026
+AI-Powered Insurance Simulator — SDD | Page 1
+--- PAGE 2 ---
+TABLE OF CONTENTS
+1. Introduction 4
+1.1 Purpose 4
+1.2 Scope 4
+1.3 Definitions, Acronyms, and Abbreviations 4
+2. References 5
+3. System Architectural Design 5
+3.1 System Description 5
+3.2 System Architecture 6
+3.3 Design Constraints 7
+3.3.1 General constraints 7
+3.3.2 Hardware constraints 7
+3.3.3 Software constraints 7
+4. Components Description 8
+4.1 Introduction 8
+4.2 Decomposition Description 8
+4.2.1 Backend components 9
+4.2.2 API (router) components 9
+4.2.3 Data components (domain entities) 10
+4.2.4 Frontend components 11
+5. External Interfaces 11
+5.1 Introduction 11
+5.2 User Interfaces 12
+5.3 Internal REST API Interface 13
+5.4 External System Interfaces 14
+5.5 Database Interface 15
+5.6 Communication, Security, and Error Interface 15
+6. Detailed Design 16
+6.1 Introduction 16
+6.2 Component - Authentication and KYC Service (auth_service) 16
+6.3 Component - Wallet Service (wallet_service) 17
+6.4 Component - Insurance Product Service (insurance_service) 17
+6.5 Component - Policy Purchase Service (policy_service) 18
+6.6 Component - Risk and ML Engine (risk_engine + ml_models) 18
+6.7 Component - Simulation Engine 19
+6.8 Component - Parametric Claims Engine (claims_engine) 19
+6.9 Component - External Trigger Monitor 20
+6.10 Component - AI Chatbot Service 20
+6.11 Component - Notification Service 21
+6.12 Component - Admin and Monitoring 21
+AI-Powered Insurance Simulator — SDD | Page 2
+--- PAGE 3 ---
+6.13 Cross-Cutting Design Decisions 22
+7. Annexes 22
+7.1 Requirements Traceability Matrix 22
+7.2 Non-Functional Requirement Coverage 23
+7.3 Endpoint-to-Component Mapping 24
+7.4 Data and Relationship Summary 25
+7.5 IEEE 1016 and UML Mapping 25
+AI-Powered Insurance Simulator — SDD | Page 3
+--- PAGE 4 ---
+1. Introduction
+1.1 Purpose
+This Software Design Document (SDD) describes the architecture and detailed design of the
+AI-Powered Insurance Simulator. It translates the functional and non-functional requirements
+defined in the Software Requirements Specification (SRS) into a concrete technical design that
+the development team can implement, test, and maintain.
+The document presents the overall system architecture, the decomposition of the system into
+components, the internal and external interfaces, and the detailed behaviour of the most critical
+components. It is intended to be the bridge between the requirement (functional) view captured
+in the SRS and the structural (implementation) view embodied in the source code repository.
+Source code reference: github.com/minh-quang-pham-le/Insurance-Simulator. The design
+described here reflects the implementation present in that repository.
+1.2 Scope
+The AI-Powered Insurance Simulator is a simplified fintech platform that teaches users the
+concepts of risk management and micro-insurance. Users browse and purchase short-term
+parametric policies (flight delay, crop/weather, gadget, natural-disaster and rainfall coverage)
+using a virtual currency (SimCoin) held in a virtual wallet. An automated parametric claims
+engine settles claims using real-world data triggers, an AI chatbot assists purchase decisions,
+and a risk engine estimates event probabilities from historical data.
+The platform serves two audiences through two separate single-page applications backed by
+one REST API and one database: an end-user Web App and an administrator Dashboard. This
+SDD covers the design of the backend services, both frontends, the data model, and the
+integrations with external data providers. It does not cover real financial transactions; all
+currency and payouts are simulated for educational purposes.
+Intended audience: project stakeholders, the product owner (course instructor), and the
+development team (designers, programmers and testers).
+1.3 Definitions, Acronyms, and Abbreviations
+Term Definition
+SDD Software Design Document — this document.
+Software Requirements Specification — the baseline requirement
+SRS
+document.
+Institute of Electrical and Electronics Engineers (design standard IEEE
+IEEE
+1016).
+Identity & Access Management / Role-Based Access Control —
+IAM / RBAC
+restricts access based on assigned roles (USER, ADMIN).
+Parametric A policy that pays a predefined amount when an objective, measurable
+Insurance trigger event occurs, bypassing manual loss assessment.
+AI-Powered Insurance Simulator — SDD | Page 4
+--- PAGE 5 ---
+Term Definition
+A mathematically defined threshold embedded in a policy; when
+Trigger Condition
+external data meets it, the claim evaluation starts.
+External Data A third-party API supplying real-time objective data (e.g.
+Provider OpenWeatherMap, AviationStack).
+The data packet returned by an External Data Provider, consumed by
+API Payload
+the claims engine.
+Virtual Wallet / A simulated ledger and currency isolated within the platform; no real
+SimCoin (SC) money is involved.
+JSON Web Token — the access/refresh token format used for
+JWT
+authentication.
+Single-Page Application — the Vue 3 frontend architecture used by
+SPA
+both clients.
+Object-Relational Mapping — SQLAlchemy, used to map Python
+ORM
+classes to PostgreSQL tables.
+2. References
+1. Software Requirements Specification (SRS) — AI-Powered Insurance Simulator, Version
+1, Group Bòng, HUST, May 2026.
+2. Project source repository — github.com/minh-quang-pham-le/Insurance-Simulator
+(README.md, SPEC.md, docs/ERD.md).
+3. IEEE Std 1016, IEEE Standard for Information Technology — Systems Design —
+Software Design Descriptions.
+4. IEEE Std 1002-1987, IEEE Standard Taxonomy for Software Engineering Standards.
+5. FastAPI documentation - https://fastapi.tiangolo.com ; SQLAlchemy 2.0 documentation -
+https://docs.sqlalchemy.org ; Vue 3 documentation - https://vuejs.org.
+3. System Architectural Design
+3.1 System Description
+The system is a web-based platform composed of four cooperating runtime units: two
+browser-based client applications, one backend API server, and one relational database. The
+backend additionally integrates with three external services (a weather API, a flight-status API,
+and an LLM provider) that supply the data and intelligence behind the parametric and AI
+features.
+At a high level, an end user interacts with the User Web App to browse products, run risk
+simulations, purchase policies, and manage a virtual wallet. An administrator uses the Admin
+Dashboard to manage products, review KYC, monitor claims, and oversee the parametric
+engine. Both clients call the same REST API, which encapsulates all business logic and is the
+only component that touches the database and the external providers.
+AI-Powered Insurance Simulator — SDD | Page 5
+--- PAGE 6 ---
+3.2 System Architecture
+The platform follows a layered client/server architecture with a clear separation between
+presentation, application logic and data:
+• Presentation tier: Two independent Vue 3 + Vite single-page applications (user and
+admin). Each is organised into views, reusable components, Pinia stores for state, and a
+thin service layer that wraps Axios HTTP calls to the API.
+• Application tier: A FastAPI server organised in three layers — routers (HTTP endpoints
+and request/response validation via Pydantic schemas), services (business logic), and
+models (SQLAlchemy ORM entities). Cross-cutting concerns such as JWT authentication
+are handled by middleware.
+• Data tier: PostgreSQL 15, accessed exclusively through the SQLAlchemy ORM; schema
+evolution is managed with Alembic migrations.
+• Integration tier: Dedicated service modules call external providers (weather, flight status)
+and the Gemini LLM, isolating third-party concerns from core logic and recording calls in
+an API monitor log.
+The architecture is deployed as containerised services orchestrated by Docker Compose. Each
+of the four runtime units (database, backend, user frontend, admin frontend) runs in its own
+container, which supports horizontal scalability of the stateless backend as required by the SRS.
+Architectural rationale and alternatives: A layered monolithic API was chosen over a
+microservices architecture because the project scope, team size and timeline favour simplicity, a
+single shared data model, and straightforward transactional consistency (important for wallet
+operations). The router/service/model split keeps the codebase modular enough that
+components can later be extracted into separate services if needed. A purely server-rendered
+AI-Powered Insurance Simulator — SDD | Page 6
+--- PAGE 7 ---
+approach was rejected in favour of SPAs to deliver the interactive simulation and dashboard
+experiences described in the SRS
+3.3 Design Constraints
+3.3.1 General constraints
+• The project must be completed within the Introduction to Software Engineering course
+timeline by a small team, favouring well-known frameworks over custom infrastructure.
+• All money, premiums and payouts are simulated (SimCoin); the system must carry no
+real-world financial or legal obligation.
+• Critical operations (policy purchase, wallet credit after a claim) must satisfy ACID
+properties; failures must roll back to prevent inconsistent wallet states.
+3.3.2 Hardware constraints
+• The system targets commodity server/container hosts; no specialised hardware (GPU,
+etc.) is required. ML risk models are lightweight and run on CPU.
+• Clients are standard desktop/laptop web browsers; no native mobile build is in scope.
+3.3.3 Software constraints
+• Backend: Python 3.10+, FastAPI, SQLAlchemy 2.0, Pydantic, Alembic. Database:
+PostgreSQL 15.
+• Frontend: Vue 3, Vite, TailwindCSS, PrimeVue, ApexCharts, Pinia, Axios.
+• AI / external services: Google Gemini 2.0 Flash (chatbot), OpenWeatherMap and
+AviationStack (trigger data); scikit-learn / joblib for the risk models.
+AI-Powered Insurance Simulator — SDD | Page 7
+--- PAGE 8 ---
+• Infrastructure: Docker and Docker Compose. Authentication uses JWT access + refresh
+tokens; passwords are hashed before storage; external API keys are kept server-side
+only.
+4. Components Description
+4.1 Introduction
+The system is decomposed following a layered, responsibility-driven strategy aligned with the
+use-case view of the SRS. The backend uses a Router–Service–Model pattern (a pragmatic
+variant of MVC where routers act as controllers, services hold domain logic, and models are the
+persistent domain entities). Each frontend follows the standard Vue component/store/service
+decomposition. The objective is that each component can be implemented, changed and tested
+with minimal impact on the others.
+4.2 Decomposition Description
+The platform is partitioned into the high-level subsystems below, each grouping a set of
+cohesive components
+Subsystem Responsibility
+Registration, login, JWT issuing/refresh, KYC, RBAC enforcement
+Identity & Access (IAM)
+(USER vs ADMIN).
+Balance management, top-up, premium deduction, payout credit,
+Virtual Wallet
+transaction ledger.
+Product catalogue, premium calculation, policy purchase and
+Marketplace & Policy
+lifecycle.
+Simulation & Risk Risk-probability estimation from historical data and ML models;
+Engine scenario simulation.
+AI-Powered Insurance Simulator — SDD | Page 8
+--- PAGE 9 ---
+Subsystem Responsibility
+Parametric Claims Trigger evaluation, automatic and manual claim processing, payout
+Engine orchestration.
+AI Chatbot LLM-backed product advisory using catalogue and risk context.
+Notification User notifications for claims, payouts and policy lifecycle events.
+Product management, KYC review, claim oversight, external-API
+Admin & Monitoring
+health monitoring, analytics.
+4.2.1 Backend components
+Each backend service encapsulates one domain. The principal components, their purpose and
+key dependencies:
+Component Purpose / function Depends on
+Hash/verify passwords, register users,
+User, Wallet models;
+auth_service authenticate, issue & refresh JWT, KYC
+middleware
+submit/review.
+get balance, top_up, deduct, credit, list
+Wallet,
+wallet_service transactions — atomically updates the
+WalletTransaction
+ledger.
+Manage product catalogue (CRUD,
+insurance_service InsuranceProduct
+activate/deactivate).
+Policy, Product,
+Calculate premium, purchase policy,
+policy_service wallet_service,
+list/cancel policies.
+risk_engine
+Compute event probability and premium;
+risk_engine ml_models, RiskData
+expose risk profile and model stats.
+FlightDelayModel & WeatherModel
+ml_models scikit-learn / joblib
+(load/predict_proba); persisted as .joblib.
+submit_manual_claim, Claim, Policy,
+claims_engine submit_auto_claim, review_claim — wallet_service,
+orchestrates payout + notification. notification_service
+notification_service Create and query user notifications. Notification
+4.2.2 API (router) components
+Routers expose the services over a versioned REST API rooted at /api/v1. They validate
+input/output with Pydantic schemas and enforce authentication and role checks.
+Router (prefix) Actor Main endpoints
+register, login, refresh, me,
+/auth Guest / User
+kyc/submit, kyc/status
+/wallet User GET /, topup, transactions
+list products, product detail, create,
+/insurance Guest / User / Admin
+update, status (admin)
+AI-Powered Insurance Simulator — SDD | Page 9
+--- PAGE 10 ---
+Router (prefix) Actor Main endpoints
+calculate-premium, purchase, list,
+/policies User
+detail, cancel
+/claims User / System submit, list, detail
+/notifications User list, unread-count, read, read-all
+dashboard, users, policies, claims,
+/admin Admin claims/review, kyc/pending, kyc
+review, ml stats, ml retrain
+4.2.3 Data components (domain entities)
+Persistent entities mapped by SQLAlchemy to PostgreSQL tables. UUID primary keys and
+timestamps are provided by shared mixins; JSONB columns store flexible schemas
+(parameters, trigger conditions, trigger data).
+Entity (table) Key attributes
+email, password_hash, full_name, role, phone_number,
+User (users)
+kyc_status, is_active
+Wallet (wallets) / balance, currency; transaction: type, amount, balance_after,
+WalletTransaction policy_id, claim_id
+name, category, base_payout, min/max_duration_days,
+InsuranceProduct
+risk_margin, parameters_schema (JSONB), trigger_conditions
+(insurance_products)
+(JSONB), is_active
+user_id, product_id, premium_paid, payout_amount, status,
+Policy (policies)
+parameters (JSONB), start_date, end_date
+policy_id, trigger_type, trigger_event, trigger_data (JSONB),
+Claim (claims)
+status, payout_amount, reviewed_by, processed_at
+product_category, region, event_date, event_type, event_severity,
+RiskData (risk_data)
+event_data (JSONB), source
+user_id, product_id, input_parameters (JSONB), triggers_activated
+SimulationSession
+(JSONB)
+ChatSession user_id, context_product_id, messages (JSONB)
+Notification user_id, type, title, message, is_read, reference_type, reference_id
+api_name, endpoint, method, status_code, response_time_ms,
+ApiMonitorLog
+error_message
+Enumerations: UserRole (USER, ADMIN); KycStatus (NOT_SUBMITTED, PENDING,
+VERIFIED, REJECTED); TransactionType (TOP_UP, PREMIUM_PAYMENT, PAYOUT,
+REFUND); ProductCategory (FLIGHT_DELAY, CROP_WEATHER, GADGET,
+NATURAL_DISASTER, RAINFALL_EVENT); PolicyStatus (ACTIVE, EXPIRED, CLAIMED,
+CANCELLED); TriggerType (AUTOMATIC, MANUAL); ClaimStatus (PENDING,
+AUTO_APPROVED, MANUAL_REVIEW, APPROVED, PAID, REJECTED); NotificationType
+(CLAIM_TRIGGERED, PAYOUT_RECEIVED, POLICY_EXPIRING, POLICY_EXPIRED,
+SYSTEM)
+AI-Powered Insurance Simulator — SDD | Page 10
+--- PAGE 11 ---
+4.2.4 Frontend components
+• User Web App: views (Home, Login, Register, Kyc, Dashboard, InsuranceList/Detail,
+MyPolicies, Wallet, Notifications), reusable components (ProductCard,
+PremiumCalculator, RiskGauge, DynamicForm, BalanceCard, TopUpForm,
+TransactionList, NotificationBell), Pinia stores (auth, wallet, insurance, policy, notification)
+and an Axios service layer.
+• Admin Dashboard: views (Login, Dashboard, Products, ProductForm, Policies, Claims,
+Users, KycReview), components (AdminHeader, AdminSidebar, StatsCard, ProductTable)
+and admin/insurance/claim services.
+5. External Interfaces
+5.1 Introduction
+This section specifies how the AI-Powered Insurance Simulator communicates with human
+users, browser clients, internal API consumers, the database, and third-party software services.
+AI-Powered Insurance Simulator — SDD | Page 11
+--- PAGE 12 ---
+The interfaces are derived from the SRS use cases and from the repository design in SPEC.md,
+README.md, CLAUDE.md, and the implementation plan.
+All external communication follows a client/server model. Browser clients communicate only with
+the FastAPI backend. The backend is the sole component allowed to access PostgreSQL,
+external data providers, and the Gemini AI service. This preserves security boundaries,
+prevents API-key exposure, and keeps wallet and policy operations transactionally consistent.
+5.2 User Interfaces
+The system provides two responsive Vue 3 single-page applications: the User Web App and the
+Admin Dashboard. Both use route guards, Pinia stores, Axios API services, and role-aware
+navigation. Public screens are available to guests; protected screens require a valid JWT;
+administrative screens require the ADMIN role.
+Interface Primary Design responsibility
+actor
+Landing / Home Guest, Presents educational content about parametric
+User insurance, introduces the simulator concept, and
+provides entry points for registration, login, and product
+browsing.
+Register / Login Guest, Collects local credentials, validates input, submits
+User authentication requests, stores tokens client-side, and
+redirects users according to role and KYC status.
+KYC / Profile User Allows users to submit phone and identity details, view
+KYC status, and maintain profile information required
+before financial simulation operations.
+Product List / Guest, Displays active insurance products, including
+Detail User description, category, base payout, duration limits,
+parameter schema, trigger conditions, and risk score.
+Premium User Collects product-specific parameters, calls the risk
+Calculator / Risk engine through the policy API, and visualizes
+Gauge probability, risk multiplier, and final premium before
+purchase.
+Simulation User Lets the user adjust scenario parameters, compare
+values with trigger thresholds, and observe whether a
+mock event would activate a payout.
+Purchase / My User Confirms purchase, shows wallet impact, lists active,
+Policies expired, claimed, and cancelled policies, and links each
+policy to claims and transactions.
+Wallet / User Shows SimCoin balance, permits simulated top-up after
+Transactions KYC verification, and provides an immutable
+transaction history.
+Notifications User Shows claim, payout, policy lifecycle, and system
+notifications with unread count and read status.
+AI-Powered Insurance Simulator — SDD | Page 12
+--- PAGE 13 ---
+Admin Dashboard Admin Displays operating metrics and provides navigation to
+product management, KYC review, policy/claim
+monitoring, risk analytics, and API health.
+User-interface validation is performed on both sides: the client prevents incomplete forms and
+the backend remains authoritative through Pydantic schemas and database constraints. Error
+messages must be explicit enough for the user to understand failed operations such as invalid
+credentials, insufficient wallet balance, unverified KYC, inactive product, or rejected claim.
+5.3 Internal REST API Interface
+Both web clients consume the backend REST API under the base path /api/v1. Requests and
+responses are JSON. Protected requests include Authorization: Bearer <access_token>.
+Refresh-token requests use the refresh token issued at login. Routers validate payloads with
+Pydantic schemas and delegate all business rules to service components.
+API group Representative endpoints Interface contract
+/auth POST /register, POST /login, Public registration/login plus
+POST /refresh, GET /me, POST protected profile and KYC
+/kyc/submit, GET /kyc/status operations. Returns JWT
+tokens or typed user/KYC
+responses.
+/wallet GET /, POST /topup, GET Requires USER role.
+/transactions Mutations require KYC
+VERIFIED and create
+WalletTransaction records with
+balance_after.
+/insurance/products GET /, GET /{id}, POST /, PUT Public/user read access for
+/{id}, PATCH /{id}/status active products; ADMIN-only
+product creation, update, and
+activation status.
+/policies POST /calculate-premium, POST Calculates premium through
+/purchase, GET /, GET /{id}, risk_engine and purchases
+POST /{id}/cancel policies atomically through
+policy_service and
+wallet_service.
+/claims POST /, GET /, GET /{id} User-facing manual claim
+submission and claim listing.
+Automatic claim creation is
+invoked internally by the
+trigger monitor/claims engine.
+/simulation GET /products/{id}/config, POST Returns slider configuration,
+/products/{id}/check-trigger, checks mock trigger activation,
+POST /products/{id}/log and stores SimulationSession
+records.
+AI-Powered Insurance Simulator — SDD | Page 13
+--- PAGE 14 ---
+/chat POST /message, GET /sessions, Sends advisory prompts to
+GET /sessions/{id} Gemini through
+chatbot_service and persists
+ChatSession history.
+/notifications GET /, GET /unread-count, Lists and updates user
+PATCH /{id}/read, PATCH notifications.
+/read-all
+/admin GET /dashboard, GET /users, ADMIN-only monitoring, KYC,
+GET /policies, GET /claims, PUT claim review, product/risk, and
+/claims/{id}/review, GET engine-health interfaces.
+/kyc/pending, PATCH
+/kyc/{user_id}, GET
+/ml/model-stats
+5.4 External System Interfaces
+The backend integrates with external providers over HTTPS. API keys and service credentials
+are read from environment variables in the backend container and are never sent to browser
+clients. Each call should be wrapped with timeout, retry, and logging behaviour. The
+ApiMonitorLog entity records provider name, endpoint, status code, response time, response
+summary, and error details for the admin monitoring view.
+External system Direction / Purpose and exchanged data
+protocol
+OpenWeatherMap Outbound Provides rainfall, weather severity, region, and
+REST/JSON timestamp data used for crop/weather,
+rainfall-event, and disaster trigger evaluation.
+AviationStack Outbound Provides flight status, airport/route data,
+REST/JSON scheduled time, actual time, and delay
+duration for flight-delay policy triggers.
+Google Gemini 2.0 Outbound Generates advisory chatbot responses from
+Flash REST/JSON user question, product catalogue context,
+policy context, and risk statistics. The chatbot
+is advisory only and cannot execute purchases
+or wallet operations.
+Mock trigger Internal/demo Supplies realistic simulated event payloads
+provider REST or service when real API keys are unavailable or when a
+call user runs simulation mode.
+Interface Design rule SRS rationale
+concern
+API key Keys are stored in backend environment External API keys must not
+handling variables or deployment secrets and are be exposed to the client side.
+excluded from frontend bundles.
+AI-Powered Insurance Simulator — SDD | Page 14
+--- PAGE 15 ---
+Retry and Provider calls use bounded timeouts and Detect External Event
+timeout retry failed transient responses before requires a retry mechanism
+recording failure. for failed external API calls.
+Payload Incoming provider payloads are Process Claim Automatically
+validation normalized and validated before trigger depends on objective trigger
+evaluation. conditions.
+Monitoring Every provider call produces an System errors and important
+ApiMonitorLog entry for dashboard events must be logged.
+review.
+Fallback Simulation/mock providers can be used The simulator must remain
+mode for demos and testing without real usable for educational
+external dependency availability. scenarios.
+5.5 Database Interface
+The database interface is internal to the backend. Routers and frontend code never access
+PostgreSQL directly. SQLAlchemy models define the object interface, Alembic manages
+schema evolution, and service methods own transaction boundaries.
+Database Design decision Affected components
+interface
+Connection FastAPI dependencies provide a All routers and services.
+management SQLAlchemy session per request; service
+functions receive the session explicitly.
+Transactions Wallet credit, wallet deduction, policy wallet_service,
+purchase, claim payout, and refund policy_service,
+operations run as atomic units and roll back claims_engine.
+on failure.
+Locking Wallet mutations acquire row-level locks wallet_service.deduct,
+where supported to prevent concurrent wallet_service.credit,
+balance races. wallet_service.top_up.
+Audit ledger WalletTransaction is append-only by Wallet history, purchase
+convention and records transaction type, audit, payout audit.
+amount, balance_after, policy_id, and
+claim_id.
+Flexible InsuranceProduct.parameters_schema and insurance_service,
+product rules trigger_conditions are JSONB documents so policy_service,
+admins can define product-specific forms and simulation_engine,
+parametric thresholds without schema claims_engine.
+changes.
+5.6 Communication, Security, and Error Interface
+AI-Powered Insurance Simulator — SDD | Page 15
+--- PAGE 16 ---
+The API returns HTTP status codes consistently: 200 for successful reads, 201 for created
+resources, 400 for invalid business requests, 401 for missing/invalid tokens, 403 for insufficient
+role or KYC status, 404 for missing resources, 409 for conflicts such as duplicate email or
+duplicate claims, and 500 only for unexpected server failures.
+Cross-origin access is limited to configured frontend origins. Passwords are hashed before
+persistence. JWT middleware extracts the current user and exposes role-check dependencies
+such as require_admin. Administrative operations are never authorized only by client-side
+routing; the backend enforces RBAC for every protected API.
+6. Detailed Design
+6.1 Introduction
+This section describes the internal design of the principal backend and frontend-facing
+components. The design follows the Router-Service-Model decomposition established in
+Section 4. Routers own HTTP contracts, services own business rules and transaction
+orchestration, and models own persistence structure.
+The SRS emphasizes three critical qualities: secure access control, data consistency for
+virtual-financial operations, and rapid automated claim settlement. Therefore the most detailed
+design is provided for authentication, wallet, policy purchase, risk/simulation, claims, external
+triggers, chatbot, notifications, and administration.
+6.2 Component - Authentication and KYC Service (auth_service)
+The authentication service provides account registration, login, refresh-token handling,
+current-user lookup, KYC submission, and administrative KYC review. It uses bcrypt-style
+password hashing and never stores raw passwords. JWT tokens carry user identity and role
+claims, while account and KYC status remain authoritative in the database.
+Operation Input Output / effect
+register email, password, Creates User with role USER and KYC
+full_name, optional NOT_SUBMITTED; creates Wallet with
+phone initial SimCoin balance.
+authenticate email, password Verifies active account and password
+hash; returns access and refresh tokens.
+refresh_access_token refresh token Validates refresh token and issues a new
+access token.
+get_current_user Bearer access Returns authenticated User or raises 401.
+token
+submit_kyc phone and identity Sets KYC status to PENDING and stores
+details submitted metadata.
+review_kyc admin decision and Sets KYC status to VERIFIED or
+optional rejection REJECTED.
+reason
+AI-Powered Insurance Simulator — SDD | Page 16
+--- PAGE 17 ---
+Registration flow: validate the request schema; reject duplicate email; hash password; create
+the user and wallet in one database transaction; return the user response. Login flow: validate
+credentials; reject inactive accounts; issue tokens; the frontend stores tokens and fetches
+/auth/me to build the role-aware navigation menu.
+6.3 Component - Wallet Service (wallet_service)
+The wallet service owns all SimCoin balance changes. It is the only component allowed to
+mutate wallet balances directly. Every mutation creates a WalletTransaction record that captures
+type, amount, balance_after, and references to the policy or claim that caused the mutation.
+Operation Rules Failure handling
+get_balance Returns wallet id, balance, currency, 404 if the wallet is missing.
+and timestamps.
+top_up Requires USER role and KYC 403 if KYC is not verified;
+VERIFIED; adds simulated SimCoin. rollback on database failure.
+deduct Checks sufficient balance; subtracts 400 if balance would
+premium; records become negative; rollback
+PREMIUM_PAYMENT transaction. preserves original balance.
+credit Adds payout or refund; records Rollback if transaction
+PAYOUT or REFUND transaction. record cannot be written.
+get_transactions Returns paginated newest-first ledger Never deletes or rewrites
+entries. historical transactions.
+Concurrency design: mutating operations should lock the wallet row before reading the balance,
+calculate the new balance in memory, write both wallet and transaction rows, then commit. This
+prevents two simultaneous purchases from spending the same balance.
+6.4 Component - Insurance Product Service (insurance_service)
+The insurance product service controls the marketplace catalogue. Products are
+micro-insurance definitions with category, description, payout, duration boundaries, risk margin,
+parameter schema, trigger conditions, and activation status.
+Design element Description SRS relation
+parameters_schema JSONB form definition used by the View product details; run
+frontend DynamicForm and simulation simulation.
+sliders.
+trigger_conditions JSONB thresholds such as Trigger Condition;
+delay_minutes >= 120 or rainfall_mm Process Claim
+>= 50. Automatically.
+risk_margin Multiplier applied during premium AI-driven risk and claim
+calculation to keep virtual products simulation.
+financially realistic.
+is_active Controls whether a product is visible Admin policy creation
+and purchasable. and deployment.
+AI-Powered Insurance Simulator — SDD | Page 17
+--- PAGE 18 ---
+created_by Links product configuration to the Manage insurance
+administrator account. products.
+Admin create/update flow: validate product metadata and JSON rule structure; persist the
+product; return the updated catalogue item. Public/user list flow returns active products and
+computed risk scores; inactive products remain available only to admin views.
+6.5 Component - Policy Purchase Service (policy_service)
+The policy service implements the purchase lifecycle described in UC006. It coordinates product
+lookup, KYC enforcement, premium calculation, wallet deduction, policy creation, cancellation,
+and expiration.
+Step Purchase behaviour Consistency rule
+1 Validate that the user is authenticated and KYC Reject before any wallet
+VERIFIED. mutation if the user is not
+eligible.
+2 Load the active product and validate user Reject inactive or malformed
+parameters against the product schema. product requests.
+3 Call risk_engine.calculate_premium to obtain Premium preview and
+event_probability, risk_multiplier, and premium. purchase use the same
+calculation source.
+4 Call wallet_service.deduct for the exact premium. Wallet deduction and policy
+creation are part of one
+logical transaction.
+5 Create Policy with ACTIVE status, premium_paid, Rollback if policy
+payout_amount, parameters, start_date, and persistence fails after
+end_date. deduction.
+6 Return policy response and allow UI to refresh User sees immediate
+wallet and policy list. feedback after purchase.
+Cancellation flow: verify policy ownership and ACTIVE status; calculate the refundable amount
+according to the product/cancellation rule; credit the wallet through wallet_service.credit; set
+policy status to CANCELLED. Expiration flow marks policies as EXPIRED when end_date
+passes without a claim.
+6.6 Component - Risk and ML Engine (risk_engine + ml_models)
+The risk engine estimates event probability and premium. It uses lightweight classification
+models such as FlightDelayModel and WeatherModel, stored as joblib artifacts, and may fall
+back to historical RiskData statistics when model artifacts are missing.
+Input Processing Output
+Product Select model or statistical profile for flight, Model identifier and
+category weather, disaster, rainfall, or manual supported feature set.
+product.
+AI-Powered Insurance Simulator — SDD | Page 18
+--- PAGE 19 ---
+Scenario Normalize fields such as route, month, Feature vector for
+parameters region, rainfall, severity, or delay threshold. prediction.
+Historical risk Compute category, region, season, and Risk profile for admin
+data event-frequency statistics. analytics and chatbot
+context.
+Base payout Expected loss = probability x payout; event_probability,
+and risk premium = expected loss x (1 + risk_multiplier,
+margin risk_margin), with minimum/maximum final_premium, risk_level.
+bounds when configured.
+The premium calculation must complete within the SRS two-second API target under normal
+load. Model loading should happen at service startup or be cached by a singleton accessor so
+request handlers do not repeatedly load joblib files.
+6.7 Component - Simulation Engine
+The simulation engine provides the educational mode from UC008. It is not a real claim path;
+instead, it lets users manipulate scenario values and immediately see whether the trigger would
+activate. This supports the SRS goal of helping users understand parametric insurance before
+spending virtual currency.
+Operation Design behaviour Stored data
+get_config Read product parameters_schema and No mutation.
+trigger_conditions to produce slider ranges,
+labels, threshold bars, and explanatory text.
+check_trigger Compare submitted values with trigger rules Optional transient
+and calculate mock payout amount when result.
+triggered.
+log_session Persist user id, product id, input_parameters, SimulationSession
+and triggers_activated. record for analytics.
+Simulation should use the same trigger definitions as the claims engine so that user education
+remains consistent with real automatic settlement behaviour. When the user selects mock
+payout, the UI may display a simulated confirmation, but it must not credit the real wallet unless
+the flow is explicitly a demo transaction.
+6.8 Component - Parametric Claims Engine (claims_engine)
+The claims engine is the core differentiator of the platform. It supports automatic parametric
+claims for objective trigger events and manual claims for non-parametric products such as
+gadget coverage.
+Path Trigger Processing result
+Automatic External event payload Create Claim with AUTOMATIC trigger,
+claim matches an ACTIVE policy's approve/pay it, credit wallet, mark policy
+trigger_conditions. CLAIMED, notify user.
+AI-Powered Insurance Simulator — SDD | Page 19
+--- PAGE 20 ---
+No-trigger External event payload does Record monitoring outcome if needed; do
+event not meet threshold. not create a claim.
+Manual User submits evidence for a Create Claim with MANUAL trigger and
+claim product that requires review. MANUAL_REVIEW/PENDING status.
+Admin Admin approves manual Credit wallet, set claim PAID, mark related
+approval claim. policy CLAIMED, notify user.
+Admin Admin rejects manual claim. Set claim REJECTED with reason; no wallet
+rejection mutation.
+Automatic claim algorithm: receive normalized provider payload; validate required fields; find
+active policies affected by route, region, time window, or product category; evaluate each JSON
+trigger expression; skip policies already claimed; create claim; credit wallet inside the same
+transactional unit; update policy and claim status; emit payout notification. The end-to-end target
+after receiving provider data is less than five seconds.
+6.9 Component - External Trigger Monitor
+The trigger monitor periodically calls external providers or mock providers, records
+ApiMonitorLog entries, and invokes the claims engine when a relevant event is detected. It is
+designed as a backend background job so browser clients do not need to stay connected for
+claims to settle.
+Design Decision Reason
+concern
+Polling Run periodically through a scheduler or Meets automated settlement
+schedule cron-like background task. without manual claim
+submission.
+Provider Separate adapter functions normalize Keeps claims_engine
+adapters OpenWeatherMap, AviationStack, and independent of third-party
+mock payloads. response formats.
+Idempotency Use policy status and existing claim Prevents multiple credits for
+checks to avoid duplicate payouts. the same event.
+Observability Log success, latency, response Supports admin monitoring
+summary, and errors to ApiMonitorLog. and debugging.
+Retry Retry transient failures with bounded Satisfies reliability
+attempts, then surface degraded status. requirement for external API
+calls.
+6.10 Component - AI Chatbot Service
+The chatbot service sends user questions to Gemini with controlled context: product catalogue
+summary, relevant user policy context, risk statistics, and a system instruction that the chatbot is
+advisory only. It persists conversations in ChatSession so the user can review advice and the
+system can maintain context.
+AI-Powered Insurance Simulator — SDD | Page 20
+--- PAGE 21 ---
+Step Chatbot behaviour Boundary
+1 Validate authenticated user and message Reject empty or excessive
+length. prompts.
+2 Build context from products, optional selected Do not include secrets or
+product, risk profile, and recent chat history. unnecessary personal data.
+3 Call Gemini API with timeout and fallback Return a graceful message if the
+handling. provider is unavailable.
+4 Persist user message and assistant response Chatbot cannot purchase
+in ChatSession. policies, alter wallet, or approve
+claims.
+5 Return response to client within the SRS Frontend shows loading and
+target of less than three seconds under error states.
+normal conditions.
+6.11 Component - Notification Service
+The notification service creates short user-facing records for important events. Notifications
+decouple backend events from UI display: a claim payout, policy expiry, KYC result, or system
+announcement can be created by services and later displayed by the frontend notification bell.
+Notification type Created by Example event
+CLAIM_TRIGGERED claims_engine External data matched a policy trigger.
+PAYOUT_RECEIVED wallet_service / A payout was credited to the wallet.
+claims_engine
+POLICY_EXPIRING policy expiration job A policy is within 24 hours of expiry.
+POLICY_EXPIRED policy expiration job A policy ended without a claim.
+SYSTEM admin or backend KYC decision, maintenance message,
+service or general announcement.
+6.12 Component - Admin and Monitoring
+The admin subsystem provides operational visibility and controlled configuration. It aggregates
+metrics from users, products, policies, claims, risk data, and API monitor logs. Every admin
+endpoint requires ADMIN role on the backend.
+Admin Data source Design behaviour
+function
+Dashboard User, Policy, Claim, Show total users, active policies, paid
+metrics WalletTransaction claims, total payout, and recent activity.
+KYC review User KYC fields List PENDING users and approve/reject
+with optional reason.
+Product InsuranceProduct Create/update/deactivate products and rule
+management definitions.
+AI-Powered Insurance Simulator — SDD | Page 21
+--- PAGE 22 ---
+Claims Claim, Policy, Filter claims by status, product, user, and
+monitoring WalletTransaction date; review manual claims.
+Risk analytics RiskData, ml_models Expose model availability, event
+distributions, risk profiles, and retraining
+actions.
+API monitoring ApiMonitorLog Display provider health, latency, recent
+failures, and last successful check.
+6.13 Cross-Cutting Design Decisions
+Concern Design decision Affected requirement
+Authentication JWT access/refresh token model with All protected APIs require
+backend-enforced RBAC. valid token; Admin/User
+separation.
+Password Hash passwords before storing; Security and access control.
+security never return password_hash in
+responses.
+Financial Wallet mutations and related ACID for purchase and
+consistency policy/claim records commit or roll payout.
+back together.
+Performance Use cached ML models, indexed 2-second API response target
+queries, paginated lists, and concise and scalability.
+JSON payloads.
+External Retries, timeouts, fallback mock data, Reliable external event
+reliability and ApiMonitorLog entries. detection.
+Scalability Stateless FastAPI backend and Horizontal scalability using
+separate Docker services. containerization.
+Usability Clear success/failure messages and Simple and intuitive UI
+role-aware navigation. feedback.
+Auditability Append-only transaction ledger and Debugging, monitoring, and
+claim/policy status history. transaction traceability.
+7. Annexes
+7.1 Requirements Traceability Matrix
+The matrix links SRS use cases to the design components that realise them. It can be used by
+developers to locate implementation responsibility and by testers to derive functional test cases.
+UC Use case Realising design elements
+UC001 Register Account /auth/register, auth_service.register, User, Wallet.
+AI-Powered Insurance Simulator — SDD | Page 22
+--- PAGE 23 ---
+UC002 Login /auth/login, /auth/refresh, auth_service.authenticate,
+JWT middleware.
+UC003 Browse Platform User Web App Home view and public routing.
+Information
+UC004 View Insurance /insurance/products, insurance_service.get_products,
+Products ProductCard.
+UC005 View Insurance /insurance/products/{id}, InsuranceDetailView,
+Product Details DynamicForm, RiskGauge.
+UC006 Purchase Insurance /policies/purchase, policy_service, risk_engine,
+Policy wallet_service.deduct, Policy.
+UC007 View Purchased /policies, /policies/{id}, policy_service.get_user_policies,
+Policies MyPoliciesView.
+UC008 Run Insurance /simulation endpoints, simulation_engine, risk_engine,
+Simulation SimulationSession, Simulation UI.
+UC009 AI Chatbot /chat/message, chatbot_service, Gemini integration,
+Consultation ChatSession.
+UC010 Detect External trigger_monitor, provider adapters, ApiMonitorLog.
+Event
+UC011 Process Claim claims_engine.submit_auto_claim, Policy, Claim,
+Automatically trigger_conditions.
+UC012 Credit Wallet After wallet_service.credit, WalletTransaction,
+Claim notification_service.
+UC013 View Transaction /wallet/transactions, WalletTransaction, TransactionList.
+History
+UC014 Manage Insurance Admin product views, /insurance/products admin
+Products endpoints, insurance_service.
+UC015 Manage Product ProductForm, parameters_schema, trigger_conditions,
+Rules insurance_service.
+UC016 Monitor Claims Admin Claims view, /admin/claims,
+/admin/claims/{id}/review, claims_engine.
+UC017 Manage Profile /auth/me, user profile/KYC views, auth_service.
+UC018 Manage User /admin/users, /admin/kyc/pending, /admin/kyc/{user_id},
+Accounts auth_service.review_kyc.
+UC019 Monitor Parametric /admin dashboard, /admin/ml/model-stats,
+Engine ApiMonitorLog, trigger_monitor.
+7.2 Non-Functional Requirement Coverage
+SRS requirement Design mechanism Verification approach
+API response time <= 2 Indexed queries, cached ML Measure endpoint latency
+seconds for login, product models, concise Pydantic with backend tests and
+view, simulation. responses, pagination.
+AI-Powered Insurance Simulator — SDD | Page 23
+--- PAGE 24 ---
+browser/network
+inspection.
+Automated claim Background trigger monitor Mock provider event test
+processing <= 5 seconds invokes claims_engine measuring event receipt to
+after external data is directly; payout transaction is PAID claim status.
+received. local database work.
+Chatbot response <= 3 Timeout-bound Gemini call, Integration test with mock
+seconds under normal compact context, graceful Gemini and runtime timing
+conditions. fallback. logs.
+Passwords securely auth_service hashes Unit test registration and
+hashed. passwords and schemas inspect stored user record.
+never expose password_hash.
+Protected APIs require JWT middleware and route 401/403 route tests.
+valid token. dependencies enforce current
+user and require_admin.
+External API keys not Keys stored in backend Frontend bundle review
+exposed client-side. environment variables only. and config inspection.
+ACID for policy purchase Service-level transaction Failure-injection tests for
+and wallet payout. boundaries and rollback on purchase and payout.
+failure.
+Retry mechanism for Provider adapters apply Mock transient provider
+failed external API calls. bounded retry and write failures.
+ApiMonitorLog.
+Clear success and failure Frontend toast/error states Manual UI acceptance
+feedback. plus descriptive backend error tests.
+messages.
+Horizontal scalability Docker Compose separates Container startup and
+through containerization. database, backend, user multiple backend replica
+frontend, and admin frontend. smoke test.
+7.3 Endpoint-to-Component Mapping
+Endpoint group Router Primary service Primary models
+/api/v1/auth auth.py auth_service User, Wallet.
+/api/v1/wallet wallet.py wallet_service Wallet,
+WalletTransaction.
+/api/v1/insurance/products insurance.py insurance_service InsuranceProduct,
+RiskData.
+/api/v1/policies policies.py policy_service, Policy,
+risk_engine, InsuranceProduct,
+wallet_service WalletTransaction.
+AI-Powered Insurance Simulator — SDD | Page 24
+--- PAGE 25 ---
+/api/v1/claims claims.py claims_engine, Claim, Policy,
+notification_service WalletTransaction,
+Notification.
+/api/v1/simulation simulation.py simulation_engine, SimulationSession,
+risk_engine InsuranceProduct,
+RiskData.
+/api/v1/chat chatbot.py chatbot_service ChatSession,
+InsuranceProduct.
+/api/v1/notifications notifications.py notification_service Notification.
+/api/v1/admin admin.py auth_service, User, Policy, Claim,
+claims_engine, InsuranceProduct,
+insurance_service, ApiMonitorLog.
+risk_engine
+7.4 Data and Relationship Summary
+The ERD in docs/ERD.md defines the persistent model. The central relationships are: one User
+has one Wallet; one User purchases many Policies; one InsuranceProduct can be purchased as
+many Policies; one Policy can produce Claims; one Wallet owns many WalletTransaction
+records; Notifications, ChatSessions, and SimulationSessions belong to Users; ApiMonitorLog
+is standalone monitoring data.
+Entity Key design role Important integrity rule
+User Identity, role, KYC, and email is unique; inactive users cannot
+account lifecycle. authenticate.
+Wallet Current simulated balance. balance must never be negative; one
+wallet per user.
+WalletTransaction Immutable audit trail for References policy_id or claim_id when
+top-up, premium, payout, applicable; append-only by convention.
+refund.
+InsuranceProduct Product catalogue and rule trigger_conditions and
+definition. parameters_schema must be valid
+JSON structures.
+Policy Purchased virtual contract. Lifecycle status controls whether
+triggers can produce claims.
+Claim Automatic or manual claim Paid claim must correspond to wallet
+record. payout transaction.
+RiskData Historical event data for Indexed by category, region, and date.
+risk and model analytics.
+ApiMonitorLog External provider Records both successful and failed
+observability. provider calls.
+7.5 IEEE 1016 and UML Mapping
+AI-Powered Insurance Simulator — SDD | Page 25
+--- PAGE 26 ---
+The architectural view in Section 3 maps to deployment and component diagrams. The
+decomposition view in Section 4 maps to package/class diagrams and the ERD. The interface
+view in Section 5 maps to UI wireframes, API tables, and external interface contracts. The
+detailed behavioural view in Section 6 maps to sequence and activity diagrams for registration,
+purchase, simulation, and automatic claims. Together these views provide the structural and
+behavioural coverage recommended by IEEE 1016.
+Recommended Source section Purpose
+diagram
+Deployment diagram 3.2 System Shows Docker services: user frontend,
+Architecture admin frontend, backend, PostgreSQL,
+and external providers.
+Component diagram 4.2 Decomposition Shows routers, services, models, and
+Description frontend modules.
+ERD / class diagram 4.2.3 and 7.4 Shows persistent entities, cardinalities,
+constraints, and key attributes.
+Sequence diagram - 6.2 Shows user, frontend, auth router, auth
+Register/Login service, database, and wallet creation.
+Sequence diagram - 6.5 Shows product lookup, premium
+Purchase Policy calculation, wallet deduction, and policy
+creation.
+Activity diagram - 6.8 and 6.9 Shows external event detection, trigger
+Automatic Claim evaluation, claim creation, payout, and
+notification.
+Activity diagram - 6.7 Shows scenario input, trigger checking,
+Simulation result display, optional mock payout, and
+session logging.
+AI-Powered Insurance Simulator — SDD | Page 26

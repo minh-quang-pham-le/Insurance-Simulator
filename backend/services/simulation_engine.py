@@ -419,14 +419,28 @@ def _check_dynamic_triggers(
         if value is None:
             continue
 
-        if _evaluate_condition(float(value), comparison, float(threshold)):
-            direction = "exceeds" if comparison == "ABOVE" else "drops below"
+        # Per-metric threshold: {metric}_threshold overrides global threshold
+        metric_threshold = parameters.get(f"{metric}_threshold")
+        if metric_threshold is None:
+            metric_threshold = threshold
+        if metric_threshold is None:
+            continue
+
+        # Per-metric direction overrides global: 0 = ABOVE, 1 = BELOW
+        per_metric_dir = parameters.get(f"{metric}_dir")
+        if per_metric_dir is not None:
+            metric_comparison = "ABOVE" if (per_metric_dir == 0 or per_metric_dir == "0") else "BELOW"
+        else:
+            metric_comparison = comparison
+
+        if _evaluate_condition(float(value), metric_comparison, float(metric_threshold)):
+            direction = "exceeds" if metric_comparison == "ABOVE" else "drops below"
             triggered_rules.append({
                 "field": metric,
                 "value": value,
-                "threshold": threshold,
-                "operator": comparison,
-                "description": f"{_label(metric)} {direction} {threshold}",
+                "threshold": metric_threshold,
+                "operator": metric_comparison,
+                "description": f"{_label(metric)} {direction} {metric_threshold}",
                 "payout_multiplier": 1.0,
             })
             max_multiplier = max(max_multiplier, 1.0)
